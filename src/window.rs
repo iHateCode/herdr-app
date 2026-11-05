@@ -2921,10 +2921,14 @@ impl AppWindow {
             }
             "tab.pin" => {
                 let Some(id) = Self::owned(a, "id").or(active_ctx) else { return self.fail("no tab to pin") };
-                let Some(pinned) = a.get("pinned").and_then(Value::as_bool).or_else(|| {
-                    let p = self.model.space_of(&id)?;
-                    Some(p.home.as_deref() != Some(&id))
-                }) else { return self.fail(format!("no tab {id:?}")) };
+                let pinned = match pin_arg(a) {
+                    Ok(Some(pinned)) => pinned,
+                    Ok(None) => match self.model.space_of(&id) {
+                        Some(p) => p.home.as_deref() != Some(&id),
+                        None => return self.fail(format!("no tab {id:?}")),
+                    },
+                    Err(error) => return self.fail(error),
+                };
                 if !self.model.pin_home(&id, pinned) {
                     return self.fail(format!("no tab {id:?}"));
                 }
@@ -4522,6 +4526,15 @@ fn busy(rec: &Value) -> bool {
 /// Whether to ask a terminal's folder for its repo and branch again: only when
 /// the answer could have changed. It moved, a command or an agent's turn just
 /// ended there (a checkout, a commit), or a repo's fallback is due.
+/// `tab.pin`'s `pinned`: absent or null toggles; anything but a boolean is an error.
+fn pin_arg(a: &Value) -> Result<Option<bool>, String> {
+    match a.get("pinned") {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(b)) => Ok(Some(*b)),
+        Some(other) => Err(format!("tab.pin pinned is true or false, not {other}")),
+    }
+}
+
 fn recheck(last: Option<&FolderCheck>, cwd: &str, busy: bool, active: bool) -> bool {
     let Some(last) = last else { return true };
     last.cwd != cwd || (last.busy && !busy) || (active && last.repo && last.at.elapsed() > FOLDER_FALLBACK)
@@ -4925,6 +4938,17 @@ fn changed_asset_paths(home: &std::path::Path, changed: &[std::path::PathBuf]) -
 mod tests {
     use gpui::{div, point, px, size, Context, IntoElement, Render, TestAppContext, Window};
     use gpui::prelude::*;
+
+    #[test]
+    fn tab_pin_takes_only_a_boolean_or_nothing() {
+        use serde_json::json;
+        assert_eq!(super::pin_arg(&json!({})), Ok(None));
+        assert_eq!(super::pin_arg(&json!({"pinned": null})), Ok(None));
+        assert_eq!(super::pin_arg(&json!({"pinned": false})), Ok(Some(false)));
+        assert_eq!(super::pin_arg(&json!({"pinned": true})), Ok(Some(true)));
+        assert!(super::pin_arg(&json!({"pinned": "false"})).is_err());
+        assert!(super::pin_arg(&json!({"pinned": 0})).is_err());
+    }
 
     #[test]
     fn going_back_into_a_split_column_takes_its_top_pane_whatever_the_fractions() {
