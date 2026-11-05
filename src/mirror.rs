@@ -365,17 +365,6 @@ mod tests {
         assert_eq!(fresh.space("s").unwrap().home.as_deref(), Some("t2"));
     }
     #[test]
-    fn an_old_view_file_without_homes_still_loads() {
-        let old = r#"{"active":"s","spaces":{"s":"t"},"tabs":{},"recent":[],"attention":{}}"#;
-        let view: View = serde_json::from_str(old).unwrap();
-        assert!(view.homes.is_empty());
-        let mut m = two_tabs();
-        m.space_mut("s").unwrap().home = Some("t2".into());
-        view.apply(&mut m);
-        assert_eq!(m.space("s").unwrap().home, None, "a file that knows no home tab leaves none");
-        assert_eq!(m.active.as_deref(), Some("s"));
-    }
-    #[test]
     fn a_stale_home_tab_is_ignored_when_a_view_is_applied() {
         let mut m = two_tabs();
         let mut view = View::capture(&m);
@@ -465,8 +454,10 @@ mod tests {
     fn an_old_view_without_homes_loads_and_a_dead_pin_is_dropped() {
         let old: View = serde_json::from_str(r#"{"active":"s","spaces":{},"tabs":{},"recent":[],"attention":{}}"#).unwrap();
         let mut m = model();
+        m.space_mut("s").unwrap().home = Some("t".into());
+        assert!(old.homes.is_empty());
         old.apply(&mut m);
-        assert_eq!(m.space("s").unwrap().home, None);
+        assert_eq!(m.space("s").unwrap().home, None, "a file that knows no home tab leaves none");
         let mut stale = View::capture(&m);
         stale.homes.insert("s".into(), "gone".into());
         stale.apply(&mut m);

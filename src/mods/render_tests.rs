@@ -895,15 +895,21 @@ fn the_wide_dot_uses_the_rails_colours(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-fn the_dot_follows_only_the_home_tab_when_there_is_one(cx: &mut TestAppContext) {
+fn the_dot_follows_the_home_tab_and_any_blocked_tab_when_there_is_a_home_tab(cx: &mut TestAppContext) {
     cx.update(gpui_shell::init);
     let staged = Staged::new();
     for width in [268, 44] {
         // Another tab is done, the home tab is idle: no dot.
         let tree = spaces_tree(cx, &staged, width, one_space("done", Some("t1"), vec![("t1", "idle"), ("t2", "done")]));
         assert!(dots(&tree).is_empty(), "{width}px: a tab other than the home tab finished: {tree}");
-        // Another tab is blocked, the home tab is working: no dot.
+        // Another tab is blocked, the home tab is working: blocked anywhere lights the dot.
         let tree = spaces_tree(cx, &staged, width, one_space("blocked", Some("t1"), vec![("t1", "working"), ("t2", "blocked")]));
+        assert_eq!(dots(&tree).len(), 1, "{width}px: a blocked tab other than the home tab: {tree}");
+        // ... in the blocked colour, as for a blocked home tab.
+        let blocked_home = spaces_tree(cx, &staged, width, one_space("blocked", Some("t1"), vec![("t1", "blocked"), ("t2", "idle")]));
+        assert_eq!(dots(&tree), dots(&blocked_home), "{width}px: same dot, same colour");
+        // A done tab other than the home tab stays hidden even beside a working home tab.
+        let tree = spaces_tree(cx, &staged, width, one_space("working", Some("t1"), vec![("t1", "working"), ("t2", "done")]));
         assert!(dots(&tree).is_empty(), "{width}px: {tree}");
         // The home tab itself needs you: dot, even if the space's own status says otherwise.
         for status in ["done", "blocked"] {
@@ -964,12 +970,13 @@ fn tabs_tree(cx: &mut TestAppContext, staged: &Staged, home: Option<&str>) -> St
 fn the_home_tab_shows_a_pin_marker_in_the_tab_bar(cx: &mut TestAppContext) {
     cx.update(gpui_shell::init);
     let staged = Staged::new();
-    let has_pin = |tree: &str| tree.to_lowercase().contains("pin");
+    let has_pin = |tree: &str| tree.contains("mods/tabs/pin.svg");
     let plain = tabs_tree(cx, &staged, None);
     assert!(plain.contains("tab-tab1") && plain.contains("tab-tab2"), "{plain}");
     assert!(!has_pin(&plain), "no home tab, no marker: {plain}");
     let first = tabs_tree(cx, &staged, Some("tab1"));
     let second = tabs_tree(cx, &staged, Some("tab2"));
     assert!(has_pin(&first) && has_pin(&second), "the home tab has a pin marker:\n{first}\n{second}");
+    assert_eq!((first.matches("pin.svg").count(), second.matches("pin.svg").count()), (1, 1), "one marker, on the home tab only");
     assert_ne!(first, second, "the marker sits on the home tab, not on every tab");
 }
