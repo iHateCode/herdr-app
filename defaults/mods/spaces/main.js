@@ -1,7 +1,8 @@
 // Workspace spaces: stable colored avatars, worktrees under their checkout,
 // grouped by machine when more than one is known. After a space's name, the repo
 // its first terminal is in now, only where unusual: branch, ahead/behind. A space shows a dot (like the narrow rail's) when something in it needs
-// you (blocked or done); if it has a home tab, only that tab counts. Click to
+// you (blocked or done); if it has a home tab, only that tab counts for done,
+// but a blocked tab anywhere in the space still shows. Click to
 // switch, right-click for its menu, drag to reorder.
 
 import { View, div, svg } from "gpui-kit";
@@ -44,9 +45,12 @@ export function glyph(status) {
   return status === "blocked" || status === "done" ? "●" : "·";
 }
 
-// What a space's dot follows: its home tab's status when it has one, else the whole space's.
+// What a space's dot follows: with a home tab, "blocked" if any tab is blocked,
+// else the home tab's status; without one, the whole space's.
 export function spaceStatus(w) {
-  return w.home ? w.tabs.find(c => c.id === w.home)?.status ?? null : w.status;
+  if (!w.home) return w.status;
+  if (w.tabs.some(c => c.status === "blocked")) return "blocked";
+  return w.tabs.find(c => c.id === w.home)?.status ?? null;
 }
 
 export function tone(t, status) {
