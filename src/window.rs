@@ -5507,6 +5507,28 @@ mod tests {
     }
 
     #[test]
+    fn tab_pin_rejects_a_pinned_that_is_not_a_boolean() {
+        in_own_process("tab_pin_bad_pinned");
+    }
+
+    #[gpui::test]
+    fn tab_pin_bad_pinned(cx: &mut gpui::TestAppContext) {
+        use serde_json::json;
+        if !running_alone("tab_pin_bad_pinned") {
+            return;
+        }
+        let (view, cx) = pin_world(cx);
+        go(&view, cx, "tab.pin", json!({"id": "b", "pinned": true}));
+        for bad in [json!("false"), json!("true"), json!(0), json!(1), json!([])] {
+            cx.update(|_, cx| view.update(cx, |this, _| this.reply = None));
+            go(&view, cx, "tab.pin", json!({"id": "b", "pinned": bad.clone()}));
+            let reply = cx.update(|_, cx| view.read(cx).reply.clone());
+            assert!(reply.as_ref().and_then(|r| r.get("error")).is_some(), "pinned {bad} must be an error, got {reply:?}");
+            assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("b"), "pinned {bad} must not toggle the pin");
+        }
+    }
+
+    #[test]
     fn tab_pin_without_an_id_means_the_selected_tab() {
         in_own_process("tab_pin_default_id");
     }
