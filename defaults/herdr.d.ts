@@ -94,6 +94,8 @@ export interface TabInfo {
   named: boolean;
   /** The one its space shows. */
   active: boolean;
+  /** Pinned as its space's home tab (tab.pin): showing the space shows it. */
+  home: boolean;
   /** Most urgent agent status in it, or null. */
   status: Status | null;
   panes: number;
@@ -127,6 +129,8 @@ export interface SpaceInfo {
   active: boolean;
   /** Most urgent agent status in it (blocked > done > working > idle), or null. */
   status: Status | null;
+  /** The id of its home tab (tab.pin), or null. */
+  home: string | null;
   tabs: TabInfo[];
 }
 

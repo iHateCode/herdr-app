@@ -280,3 +280,13 @@ test("no reconciliation without a rendered sidebar", () => {
   h.flush();
   expect(h.order()).toEqual(["main", "topic"]);
 });
+
+test("a space's dot follows its home tab when it has one", () => {
+  const s = new Function("View", `${source}; return { spaceStatus, glyph };`)(class {});
+  const tabs = [{ id: "a", status: "idle" }, { id: "b", status: "done" }];
+  expect(s.spaceStatus({ status: "done", home: null, tabs })).toBe("done");
+  expect(s.spaceStatus({ status: "done", home: "a", tabs })).toBe("idle");
+  expect(s.glyph(s.spaceStatus({ status: "done", home: "a", tabs }))).toBe("·");
+  expect(s.spaceStatus({ status: "done", home: "b", tabs })).toBe("done");
+  expect(s.spaceStatus({ status: "done", home: "gone", tabs })).toBe(null);
+});

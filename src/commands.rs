@@ -39,6 +39,7 @@ pub const COMMANDS: &[Command] = &[
     cmd("tab.close", &[opt("id"), opt("confirmed")], "Close a tab and end its terminals."),
     cmd("tab.rename", &[opt("id"), opt("name")], "Rename a tab (asks the person when no name; an empty name: called by its number again)."),
     cmd("tab.move", &[req("id"), req("index")], "Move a tab to a position in its space (1 = first)."),
+    cmd("tab.pin", &[opt("id"), opt("pinned")], "Pin a tab (default: the shown one) as its space's home tab, or unpin it (pinned false); omitted: toggle. A space has one home tab, and showing the space shows that tab. Kept on this screen."),
     cmd("pane.split", &[req("direction"), opt("pane"), opt("argv"), opt("mod"), opt("props")], "Split a pane (default: the focused one) \"right\" or \"down\" with a new terminal, or with a mod (`mod`, its `props`) beside it."),
     cmd("pane.close", &[opt("pane")], "Close a pane and end its terminal."),
     cmd("terminal.open", &[opt("argv"), opt("folder"), opt("place"), opt("name")], "Start a terminal: as a new tab (place \"tab\", default), or \"right\"/\"down\" of the focused pane."),
@@ -217,6 +218,7 @@ mod tests {
         names.sort();
         names.dedup();
         assert_eq!(names.len(), COMMANDS.len());
+        assert!(find("tab.pin").is_some_and(|c| c.args.iter().all(|a| !a.required)));
         assert_eq!(shorthand(find("tab.select").unwrap(), "3"), json!({ "index": 3 }));
         assert_eq!(shorthand(find("pane.split").unwrap(), "right"), json!({ "direction": "right" }));
         let move_ = find("space.move").unwrap();

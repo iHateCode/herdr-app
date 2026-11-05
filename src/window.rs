@@ -2865,7 +2865,9 @@ impl AppWindow {
                     self.model.spaces.get(i.checked_sub(1)?).map(|p| p.id.clone())
                 });
                 match id.filter(|id| self.model.space(id).is_some()) {
-                    Some(id) => self.model.active = Some(id),
+                    Some(id) => {
+                        self.model.show_space(&id);
+                    }
                     None => return self.fail("no such space"),
                 }
             }
@@ -2873,7 +2875,8 @@ impl AppWindow {
                 let n = self.model.spaces.len();
                 if let Some(i) = self.model.active_index().filter(|_| n > 0) {
                     let j = if name == "space.next" { (i + 1) % n } else { (i + n - 1) % n };
-                    self.model.active = Some(self.model.spaces[j].id.clone());
+                    let id = self.model.spaces[j].id.clone();
+                    self.model.show_space(&id);
                 }
             }
             // ---- tabs
@@ -2915,6 +2918,20 @@ impl AppWindow {
                 let c = p.tabs.remove(from);
                 let to = (i as usize).saturating_sub(1).min(p.tabs.len());
                 p.tabs.insert(to, c);
+            }
+            "tab.pin" => {
+                let Some(id) = Self::owned(a, "id").or(active_ctx) else { return self.fail("no tab to pin") };
+                let pinned = match pin_arg(a) {
+                    Ok(Some(pinned)) => pinned,
+                    Ok(None) => match self.model.space_of(&id) {
+                        Some(p) => p.home.as_deref() != Some(&id),
+                        None => return self.fail(format!("no tab {id:?}")),
+                    },
+                    Err(error) => return self.fail(error),
+                };
+                if !self.model.pin_home(&id, pinned) {
+                    return self.fail(format!("no tab {id:?}"));
+                }
             }
             "tab.settle" | "tab.unsettle" => {
                 let Some(id) = Self::owned(a, "id").or(active_ctx) else { return self.fail("no tab") };
@@ -4506,6 +4523,15 @@ fn busy(rec: &Value) -> bool {
     rec["status"] == "working" || !(program("shell") || program("agent"))
 }
 
+/// `tab.pin`'s `pinned`: absent or null toggles; anything but a boolean is an error.
+fn pin_arg(a: &Value) -> Result<Option<bool>, String> {
+    match a.get("pinned") {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::Bool(b)) => Ok(Some(*b)),
+        Some(other) => Err(format!("tab.pin pinned is true or false, not {other}")),
+    }
+}
+
 /// Whether to ask a terminal's folder for its repo and branch again: only when
 /// the answer could have changed. It moved, a command or an agent's turn just
 /// ended there (a checkout, a commit), or a repo's fallback is due.
@@ -4912,6 +4938,17 @@ fn changed_asset_paths(home: &std::path::Path, changed: &[std::path::PathBuf]) -
 mod tests {
     use gpui::{div, point, px, size, Context, IntoElement, Render, TestAppContext, Window};
     use gpui::prelude::*;
+
+    #[test]
+    fn tab_pin_takes_only_a_boolean_or_nothing() {
+        use serde_json::json;
+        assert_eq!(super::pin_arg(&json!({})), Ok(None));
+        assert_eq!(super::pin_arg(&json!({"pinned": null})), Ok(None));
+        assert_eq!(super::pin_arg(&json!({"pinned": false})), Ok(Some(false)));
+        assert_eq!(super::pin_arg(&json!({"pinned": true})), Ok(Some(true)));
+        assert!(super::pin_arg(&json!({"pinned": "false"})).is_err());
+        assert!(super::pin_arg(&json!({"pinned": 0})).is_err());
+    }
 
     #[test]
     fn going_back_into_a_split_column_takes_its_top_pane_whatever_the_fractions() {

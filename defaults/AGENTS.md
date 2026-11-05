@@ -121,6 +121,13 @@ the highlighted line shows where it will land.
   ...), as in Herdr; `tab.rename` names it ("fix login"). A space
   has one or more; closing the last one closes the space (it stays in
   `recent`).
+- A tab can be pinned as its space's **home tab** (`tab.pin`, or right-click a
+  tab); one per space, kept on this screen. Showing the space (a click, its
+  number key, `space.select`, `space.next`, `space.prev`) shows its home tab,
+  also when the space is already shown. `home` is the tab's id on a space
+  and a boolean on a tab. The space list's dot follows the home tab's
+  status when there is one. A settled tab can be pinned; showing its space
+  brings it back.
 - A tab can be **settled** (`tab.settle`): put away on this screen, still running;
   `settled` on each tab. The shipped layouts don't use it (they list every
   tab); a mod that does can hide or fold settled tabs. Showing one, or an
@@ -552,7 +559,8 @@ The main ones:
   `tab.rename {id?, name}` ("": its number again), `tab.move {id, index}`,
   `tab.select {index | id}`, `tab.next`, `tab.prev`,
   `tab.settle {id?}`, `tab.unsettle {id?}` (index, next and prev
-  skip settled tabs).
+  skip settled tabs), `tab.pin {id?, pinned?}` (home tab: omitted `pinned`
+  toggles).
 - Panes: `pane.split {direction: "right" | "down", pane?, argv? | mod?, props?}` (a new
   terminal, or a mod pane), `pane.close {pane?}`,
   `pane.zoom {pane?}`, `pane.focus {pane | terminal}`, `pane.go {direction}`, `pane.swap {direction}`.
