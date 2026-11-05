@@ -42,6 +42,9 @@ pub struct View {
     tabs: BTreeMap<String, TabView>,
     recent: Vec<Recent>,
     attention: BTreeMap<String, Seen>,
+    /// Space id -> its home tab id.
+    #[serde(default)]
+    homes: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Default, Serialize, Deserialize)]
@@ -123,6 +126,7 @@ impl Document {
             folder: s.folder.clone(),
             machine: machine.map(str::to_owned),
             active: None,
+            home: None,
             tabs: s
                 .tabs
                 .iter()
@@ -147,6 +151,7 @@ impl View {
             spaces: model.spaces.iter().map(|s| (s.id.clone(), s.active.clone())).collect(),
             tabs: model.tabs().map(|t| (t.id.clone(), TabView { focused: t.focused.clone(), before: t.before.clone(), zoomed: t.zoomed.clone(), settled: t.settled })).collect(),
             attention: model.agents.iter().map(|(a, s)| (a.clone(), Seen { word: s.word.clone(), seen: s.seen })).collect(),
+            homes: model.spaces.iter().filter_map(|s| Some((s.id.clone(), s.home_tab()?.id.clone()))).collect(),
         }
     }
 
@@ -158,6 +163,10 @@ impl View {
             if let Some(active) = self.spaces.get(&space.id) {
                 merged.spaces.insert(space.id.clone(), active.clone());
             }
+            match self.homes.get(&space.id) {
+                Some(home) => merged.homes.insert(space.id.clone(), home.clone()),
+                None => merged.homes.remove(&space.id),
+            };
             for tab in &space.tabs {
                 if let Some(view) = self.tabs.get(&tab.id) {
                     merged.tabs.insert(tab.id.clone(), view.clone());
@@ -191,11 +200,13 @@ impl View {
         self.spaces.extend(saved.spaces.iter().filter(|(id, _)| unloaded(id)).map(|(id, v)| (id.clone(), v.clone())));
         self.tabs.extend(saved.tabs.iter().filter(|(id, _)| unloaded(id)).map(|(id, v)| (id.clone(), v.clone())));
         self.attention.extend(saved.attention.iter().filter(|(id, _)| unloaded(id)).map(|(id, v)| (id.clone(), v.clone())));
+        self.homes.extend(saved.homes.iter().filter(|(id, _)| unloaded(id)).map(|(id, v)| (id.clone(), v.clone())));
     }
 
     pub fn apply(&self, model: &mut Model) {
         for s in &mut model.spaces {
             s.active = self.spaces.get(&s.id).cloned().flatten().filter(|id| s.tab(id).is_some()).or_else(|| s.tabs.first().map(|t| t.id.clone()));
+            s.home = self.homes.get(&s.id).filter(|id| s.tab(id).is_some()).cloned();
             for t in &mut s.tabs {
                 if let Some(v) = self.tabs.get(&t.id) {
                     t.focused = v.focused.clone().filter(|id| t.root.find(id).is_some());
@@ -431,5 +442,34 @@ mod tests {
     #[test]
     fn fresh_ids_are_not_a_per_screen_counter() {
         assert_ne!(Model::default().fresh_id("p"), Model::default().fresh_id("p"));
+    }
+
+    #[test]
+    fn the_home_tab_survives_a_sync_and_a_saved_view() {
+        let mut m = Model::default();
+        m.add_space("s", "work", "/work", Tab::new("t", "task", "p", "t1"));
+        m.add_tab("s", Tab::new("u", "two", "q", "t2"));
+        m.pin_home("u", true);
+        let doc = Document::capture(&m, None);
+        let saved: View = serde_json::from_str(&serde_json::to_string(&View::capture(&m)).unwrap()).unwrap();
+        doc.replace(&mut m, None);
+        assert_eq!(m.space("s").unwrap().home.as_deref(), Some("u"));
+        let mut fresh = Model::default();
+        doc.replace(&mut fresh, None);
+        assert_eq!(fresh.space("s").unwrap().home, None);
+        saved.apply_machine(&mut fresh, None);
+        assert_eq!(fresh.space("s").unwrap().home.as_deref(), Some("u"));
+    }
+
+    #[test]
+    fn an_old_view_without_homes_loads_and_a_dead_pin_is_dropped() {
+        let old: View = serde_json::from_str(r#"{"active":"s","spaces":{},"tabs":{},"recent":[],"attention":{}}"#).unwrap();
+        let mut m = model();
+        old.apply(&mut m);
+        assert_eq!(m.space("s").unwrap().home, None);
+        let mut stale = View::capture(&m);
+        stale.homes.insert("s".into(), "gone".into());
+        stale.apply(&mut m);
+        assert_eq!(m.space("s").unwrap().home, None);
     }
 }

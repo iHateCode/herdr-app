@@ -37,6 +37,8 @@ pub struct Space {
     pub tabs: Vec<Tab>,
     /// The selected tab.
     pub active: Option<String>,
+    /// The home tab: switching to the space shows it. Kept per screen.
+    pub home: Option<String>,
 }
 
 /// A closed space, so opening it again doesn't ask for its name.
@@ -151,6 +153,11 @@ impl Space {
         self.active.as_deref().and_then(|a| self.tab(a)).or(self.tabs.first())
     }
 
+    /// The home tab, if it is still one of the space's tabs.
+    pub fn home_tab(&self) -> Option<&Tab> {
+        self.home.as_deref().and_then(|h| self.tab(h))
+    }
+
     fn select(&mut self, ctx: &str) {
         if self.tab(ctx).is_some() {
             self.active = Some(ctx.to_owned());
@@ -257,7 +264,7 @@ impl Model {
 
     pub fn add_space(&mut self, id: &str, name: &str, folder: &str, ctx: Tab) {
         let active = Some(ctx.id.clone());
-        self.spaces.push(Space { id: id.to_owned(), name: name.to_owned(), folder: folder.to_owned(), machine: None, tabs: vec![ctx], active });
+        self.spaces.push(Space { id: id.to_owned(), name: name.to_owned(), folder: folder.to_owned(), machine: None, tabs: vec![ctx], active, home: None });
         self.recent.retain(|r| r.name != name);
         self.active = Some(id.to_owned());
     }
@@ -352,6 +359,9 @@ impl Model {
         let p = &mut self.spaces[pi];
         let ci = p.tabs.iter().position(|c| c.id == ctx).unwrap();
         let removed = p.tabs.remove(ci);
+        if p.home.as_deref() == Some(ctx) {
+            p.home = None;
+        }
         if p.active.as_deref() == Some(ctx) {
             // The tab that slides into the slot, or the last one.
             p.active = p.tabs.get(ci).or(p.tabs.last()).map(|c| c.id.clone());
@@ -389,6 +399,30 @@ impl Model {
         p.select(ctx);
         self.active = Some(p.id.clone());
         self.unsettle(ctx);
+        true
+    }
+
+    /// Pins a tab as its space's home tab (the one pin moves from any other
+    /// tab), or unpins it. False when there is no such tab.
+    pub fn pin_home(&mut self, ctx: &str, pinned: bool) -> bool {
+        let Some(p) = self.spaces.iter_mut().find(|p| p.tab(ctx).is_some()) else { return false };
+        if pinned {
+            p.home = Some(ctx.to_owned());
+        } else if p.home.as_deref() == Some(ctx) {
+            p.home = None;
+        }
+        true
+    }
+
+    /// Shows a space: its home tab when it has one, else the tab it last showed.
+    pub fn show_space(&mut self, id: &str) -> bool {
+        let Some(p) = self.space(id) else { return false };
+        match p.home_tab().map(|c| c.id.clone()) {
+            Some(home) => {
+                self.select_tab(&home);
+            }
+            None => self.active = Some(id.to_owned()),
+        }
         true
     }
 
@@ -588,6 +622,7 @@ pub fn space_json(m: &Model, p: &Space, index: usize, branch: Option<&str>, home
                 "status": m.rollup(&addresses(&c.root)),
                 "panes": c.root.panes().len(),
                 "zoomed": c.zoomed.is_some(),
+                "home": p.home.as_deref() == Some(&c.id),
                 "settled": c.settled.is_some(),
                 "settled_at": c.settled,
                 "changed_at": m.changed_at(c),
@@ -606,6 +641,7 @@ pub fn space_json(m: &Model, p: &Space, index: usize, branch: Option<&str>, home
         "branch": branch,
         "active": m.active.as_deref() == Some(&p.id),
         "status": m.rollup(&all),
+        "home": p.home_tab().map(|c| &c.id),
         "tabs": tabs,
     })
 }
@@ -877,6 +913,13 @@ mod tests {
         m
     }
 
+    fn two_spaces() -> Model {
+        let mut m = model_with_one();
+        m.add_tab("p1", Tab::new("c2", "b", "x2", "t2"));
+        m.add_space("p2", "web", "/w", Tab::new("c3", "c", "x3", "t3"));
+        m
+    }
+
     #[test]
     fn a_new_space_has_no_home_tab() {
         assert_eq!(model_with_one().space("p1").unwrap().home, None);
@@ -913,5 +956,58 @@ mod tests {
         let json = space_json(&m, m.space("p1").unwrap(), 0, None, "/h");
         assert_eq!(json["home"], Value::Null, "SpaceInfo.home is the live home tab");
         assert!(json["tabs"].as_array().unwrap().iter().all(|t| t["home"] == json!(false)));
+    }
+
+    #[test]
+    fn showing_a_space_lands_on_its_home_tab() {
+        let mut m = two_spaces();
+        assert!(m.pin_home("c1", true));
+        // Showing it again also goes home, whatever tab it last showed.
+        assert!(m.show_space("p1"));
+        assert_eq!((m.active.as_deref(), m.active_tab().map(|c| c.id.as_str())), (Some("p1"), Some("c1")));
+        m.select_tab("c2");
+        assert!(m.show_space("p1"));
+        assert_eq!(m.active_tab().map(|c| c.id.as_str()), Some("c1"));
+    }
+
+    #[test]
+    fn a_space_without_a_home_keeps_its_last_tab() {
+        let mut m = two_spaces();
+        m.select_tab("c2");
+        m.show_space("p2");
+        m.show_space("p1");
+        assert_eq!(m.active_tab().map(|c| c.id.as_str()), Some("c2"));
+        assert!(!m.show_space("nope"));
+    }
+
+    #[test]
+    fn one_home_per_space_and_unpinning() {
+        let mut m = two_spaces();
+        m.pin_home("c1", true);
+        m.pin_home("c2", true);
+        assert_eq!(m.space("p1").unwrap().home.as_deref(), Some("c2"));
+        m.pin_home("c1", false);
+        assert_eq!(m.space("p1").unwrap().home.as_deref(), Some("c2"));
+        m.pin_home("c2", false);
+        assert_eq!(m.space("p1").unwrap().home, None);
+        assert!(!m.pin_home("nope", true));
+    }
+
+    #[test]
+    fn closing_the_home_tab_clears_the_pin() {
+        let mut m = two_spaces();
+        m.pin_home("c1", true);
+        m.remove_tab("c1");
+        assert_eq!(m.space("p1").unwrap().home, None);
+    }
+
+    #[test]
+    fn mods_see_the_home_tab() {
+        let mut m = two_spaces();
+        m.pin_home("c2", true);
+        let v = space_json(&m, m.space("p1").unwrap(), 0, None, "/h");
+        assert_eq!(v["home"], "c2");
+        assert_eq!((v["tabs"][0]["home"].as_bool(), v["tabs"][1]["home"].as_bool()), (Some(false), Some(true)));
+        assert!(space_json(&m, m.space("p2").unwrap(), 1, None, "/h")["home"].is_null());
     }
 }
