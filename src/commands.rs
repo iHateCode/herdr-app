@@ -178,6 +178,25 @@ mod tests {
     }
 
     #[test]
+    fn tab_pin_takes_an_optional_tab_and_an_optional_state() {
+        let pin = find("tab.pin").expect("tab.pin is a command");
+        assert_eq!(pin.args.iter().map(|a| (a.name, a.required)).collect::<Vec<_>>(), [("id", false), ("pinned", false)]);
+        assert_eq!(missing(pin, &json!({})), None);
+        assert!(validate_args(pin, &Value::Null).is_ok());
+        assert!(validate_args(pin, &json!({ "id": "t", "pinned": true })).is_ok());
+        assert!(validate_args(pin, &json!({ "id": 5 })).is_err(), "a tab id is a string");
+        assert!(validate_args(pin, &json!({ "tab": "t" })).is_err(), "misspelled arguments are rejected");
+    }
+
+    /// The guide agents read and the command reference both document the new command.
+    #[test]
+    fn tab_pin_is_documented() {
+        for (file, text) in [("defaults/AGENTS.md", include_str!("../defaults/AGENTS.md")), ("docs/commands.md", include_str!("../docs/commands.md"))] {
+            assert!(text.contains("tab.pin"), "{file} doesn't document tab.pin");
+        }
+    }
+
+    #[test]
     fn unknown_arguments_are_rejected_for_every_command() {
         for c in COMMANDS {
             let error = validate_args(c, &json!({ "typo": "target" })).unwrap_err();

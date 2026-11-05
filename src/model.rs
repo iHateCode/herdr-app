@@ -870,4 +870,48 @@ mod tests {
         assert_eq!(m.focused_pane().as_deref(), Some("x1"));
         assert_eq!(m.active_tab().map(|c| addresses(c.shown())).unwrap_or_default(), ["t1"]);
     }
+
+    fn two_tabs() -> Model {
+        let mut m = model_with_one();
+        m.add_tab("p1", Tab::new("c2", "docs", "x2", "t2"));
+        m
+    }
+
+    #[test]
+    fn a_new_space_has_no_home_tab() {
+        assert_eq!(model_with_one().space("p1").unwrap().home, None);
+    }
+
+    #[test]
+    fn closing_the_home_tab_clears_the_pin_and_closing_another_keeps_it() {
+        let mut m = two_tabs();
+        m.add_tab("p1", Tab::new("c3", "more", "x3", "t3"));
+        m.space_mut("p1").unwrap().home = Some("c2".into());
+        m.remove_tab("c3");
+        assert_eq!(m.space("p1").unwrap().home.as_deref(), Some("c2"), "another tab closing leaves the pin");
+        m.remove_tab("c2");
+        assert_eq!(m.space("p1").unwrap().home, None, "the pinned tab is gone, so is the pin");
+    }
+
+    #[test]
+    fn mods_see_the_home_tab_on_spaces_and_tabs() {
+        let mut m = two_tabs();
+        let plain = space_json(&m, m.space("p1").unwrap(), 0, None, "/h");
+        assert_eq!(plain["home"], Value::Null);
+        assert!(plain["tabs"].as_array().unwrap().iter().all(|t| t["home"] == json!(false)));
+        m.space_mut("p1").unwrap().home = Some("c2".into());
+        let pinned = space_json(&m, m.space("p1").unwrap(), 0, None, "/h");
+        assert_eq!(pinned["home"], json!("c2"));
+        let flags: Vec<(String, bool)> = pinned["tabs"].as_array().unwrap().iter().map(|t| (t["id"].as_str().unwrap().into(), t["home"].as_bool().unwrap())).collect();
+        assert_eq!(flags, [("c1".into(), false), ("c2".into(), true)]);
+    }
+
+    #[test]
+    fn mods_never_see_a_home_tab_that_is_gone() {
+        let mut m = two_tabs();
+        m.space_mut("p1").unwrap().home = Some("ghost".into());
+        let json = space_json(&m, m.space("p1").unwrap(), 0, None, "/h");
+        assert_eq!(json["home"], Value::Null, "SpaceInfo.home is the live home tab");
+        assert!(json["tabs"].as_array().unwrap().iter().all(|t| t["home"] == json!(false)));
+    }
 }
