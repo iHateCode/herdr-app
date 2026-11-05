@@ -8,7 +8,8 @@
 //!
 //! A build from source never updates: only `scripts/package` (the release
 //! builds) sets `HERDR_APP_RELEASE`. `scripts/install-macos` makes a
-//! Herdr.app too, so the install's shape alone can't tell.
+//! Herdr.app too, so the install's shape alone can't tell. A build made with
+//! `HERDR_APP_NO_SELF_UPDATE` (a fork's) never updates the app; the core still does.
 //!
 //! The core is checked on the same clock (`core/latest.json`): a newer core
 //! of the same generation is offered (also applied after an app update), unless
@@ -117,7 +118,17 @@ pub fn set_core(version: Option<String>, managed: Option<String>) {
 }
 
 fn checks_app() -> Option<PathBuf> {
-    root().filter(|_| option_env!("HERDR_APP_RELEASE").is_some() || std::env::var_os("HERDR_RELEASES_URL").is_some())
+    root().filter(|_| {
+        app_updates_on(
+            option_env!("HERDR_APP_RELEASE").is_some() || std::env::var_os("HERDR_RELEASES_URL").is_some(),
+            option_env!("HERDR_APP_NO_SELF_UPDATE").is_some(),
+        )
+    })
+}
+
+/// A build made with `HERDR_APP_NO_SELF_UPDATE` (a fork's) never replaces the app, even when pointed at a release server.
+fn app_updates_on(release_or_test_server: bool, no_self_update: bool) -> bool {
+    release_or_test_server && !no_self_update
 }
 
 /// A release build checks the core; a source build only when pointed at a test release server.
@@ -607,6 +618,13 @@ pub fn after_update() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn no_self_update_switch_turns_off_app_updates_only() {
+        assert!(app_updates_on(true, false));
+        assert!(!app_updates_on(true, true));
+        assert!(!app_updates_on(false, false));
+    }
 
     #[test]
     fn failed_check_clears_success_and_recovery_records_a_new_time() {

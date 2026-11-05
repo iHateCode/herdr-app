@@ -52,7 +52,12 @@ jobs:
       - name: Keep unchanged sources fresh
         run: scripts/ci-sources restore
       # No APPLE_* variables: scripts/mac-sign then signs ad hoc.
+      # scripts/package marks the build as a release, which would let the app
+      # download the upstream app and replace this fork on quit. The switch
+      # turns off app self-update only (core updates stay on).
       - name: Build and pack
+        env:
+          HERDR_APP_NO_SELF_UPDATE: "1"
         run: scripts/package
       - name: Verify release notices
         run: |
