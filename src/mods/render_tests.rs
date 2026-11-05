@@ -838,8 +838,10 @@ fn sidebar_values(width: u32, spaces: Vec<Value>) -> BTreeMap<String, Value> {
     values
 }
 
-fn dots(tree: &str) -> Vec<&str> {
-    tree.lines().filter(|l| l.contains('●')).collect()
+/// Each dot with the element that colours it (the line above its text).
+fn dots(tree: &str) -> Vec<String> {
+    let lines: Vec<&str> = tree.lines().collect();
+    (0..lines.len()).filter(|&i| lines[i].contains('●')).map(|i| format!("{} {}", i.checked_sub(1).map_or("", |j| lines[j]), lines[i])).collect()
 }
 
 fn spaces_tree(cx: &mut TestAppContext, staged: &Staged, width: u32, spaces: Vec<Value>) -> String {
@@ -878,7 +880,7 @@ fn the_wide_dot_uses_the_rails_colours(cx: &mut TestAppContext) {
         let tree = spaces_tree(cx, &staged, width, one_space(status, None, vec![("t1", status)]));
         let lines = dots(&tree);
         assert_eq!(lines.len(), 1, "{width}px, {status}: {tree}");
-        lines[0].to_owned()
+        lines[0].clone()
     };
     let tokens = |l: &str| -> BTreeSet<String> {
         l.split(|c: char| !c.is_alphanumeric() && c != '#' && c != '.').filter(|t| !t.is_empty()).map(str::to_owned).collect()
@@ -887,7 +889,7 @@ fn the_wide_dot_uses_the_rails_colours(cx: &mut TestAppContext) {
     let (wide_blocked, wide_done) = (tokens(&line(cx, 268, "blocked")), tokens(&line(cx, 268, "done")));
     let blocked: BTreeSet<_> = rail_blocked.difference(&rail_done).cloned().collect();
     let done: BTreeSet<_> = rail_done.difference(&rail_blocked).cloned().collect();
-    assert!(!blocked.is_empty() && !done.is_empty(), "the rail colours blocked and done differently");
+    assert!(!blocked.is_empty() && !done.is_empty(), "the rail colours blocked and done differently: {rail_blocked:?} vs {rail_done:?}");
     assert!(blocked.is_subset(&wide_blocked) && blocked.is_disjoint(&wide_done), "wide blocked dot: the rail's colour");
     assert!(done.is_subset(&wide_done) && done.is_disjoint(&wide_blocked), "wide done dot: the rail's colour");
 }
