@@ -126,7 +126,8 @@ the highlighted line shows where it will land.
   number key, `space.select`, `space.next`, `space.prev`) shows its home tab,
   also when the space is already shown. `home` is the tab's id on a space
   and a boolean on a tab. The space list's dot follows the home tab's
-  status when there is one. A settled tab can be pinned; showing its space
+  status when there is one, except that a blocked tab anywhere in the space
+  still lights it. A settled tab can be pinned; showing its space
   brings it back.
 - A tab can be **settled** (`tab.settle`): put away on this screen, still running;
   `settled` on each tab. The shipped layouts don't use it (they list every

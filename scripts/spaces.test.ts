@@ -281,12 +281,19 @@ test("no reconciliation without a rendered sidebar", () => {
   expect(h.order()).toEqual(["main", "topic"]);
 });
 
-test("a space's dot follows its home tab when it has one", () => {
+test("a space's dot follows its home tab, but a blocked tab anywhere still shows", () => {
   const s = new Function("View", `${source}; return { spaceStatus, glyph };`)(class {});
-  const tabs = [{ id: "a", status: "idle" }, { id: "b", status: "done" }];
-  expect(s.spaceStatus({ status: "done", home: null, tabs })).toBe("done");
-  expect(s.spaceStatus({ status: "done", home: "a", tabs })).toBe("idle");
-  expect(s.glyph(s.spaceStatus({ status: "done", home: "a", tabs }))).toBe("·");
-  expect(s.spaceStatus({ status: "done", home: "b", tabs })).toBe("done");
-  expect(s.spaceStatus({ status: "done", home: "gone", tabs })).toBe(null);
+  const space = (home: string | null, ...status: (string | null)[]) =>
+    ({ status: "done", home, tabs: status.map((x, i) => ({ id: "ab"[i], status: x })) });
+  // No home tab: the space's own status.
+  expect(s.spaceStatus({ ...space(null, "idle", "idle"), status: "done" })).toBe("done");
+  // Home idle, another tab done: no dot.
+  expect(s.spaceStatus(space("a", "idle", "done"))).toBe("idle");
+  expect(s.glyph(s.spaceStatus(space("a", "idle", "done")))).toBe("·");
+  // Home idle, another tab blocked: blocked.
+  expect(s.spaceStatus(space("a", "idle", "blocked"))).toBe("blocked");
+  // Home done: done.
+  expect(s.spaceStatus(space("a", "done", "idle"))).toBe("done");
+  // A home id that is gone from the tabs: nothing, unless something is blocked.
+  expect(s.spaceStatus(space("gone", "idle", "done"))).toBe(null);
 });
