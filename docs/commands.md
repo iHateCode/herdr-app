@@ -98,6 +98,15 @@ Move a tab to a position in its space (1 = first).
 | `id` | yes |
 | `index` | yes |
 
+## `tab.pin`
+
+Pin a tab (default: the shown one) as its space's home tab, or unpin it (pinned false); omitted: toggle. A space has one home tab, and showing the space shows that tab. Kept on this screen.
+
+| Argument | Required |
+|---|---|
+| `id` | no |
+| `pinned` | no |
+
 ## `pane.split`
 
 Split a pane (default: the focused one) "right" or "down" with a new terminal, or with a mod (`mod`, its `props`) beside it.

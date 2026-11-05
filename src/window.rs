@@ -2865,7 +2865,9 @@ impl AppWindow {
                     self.model.spaces.get(i.checked_sub(1)?).map(|p| p.id.clone())
                 });
                 match id.filter(|id| self.model.space(id).is_some()) {
-                    Some(id) => self.model.active = Some(id),
+                    Some(id) => {
+                        self.model.show_space(&id);
+                    }
                     None => return self.fail("no such space"),
                 }
             }
@@ -2873,7 +2875,8 @@ impl AppWindow {
                 let n = self.model.spaces.len();
                 if let Some(i) = self.model.active_index().filter(|_| n > 0) {
                     let j = if name == "space.next" { (i + 1) % n } else { (i + n - 1) % n };
-                    self.model.active = Some(self.model.spaces[j].id.clone());
+                    let id = self.model.spaces[j].id.clone();
+                    self.model.show_space(&id);
                 }
             }
             // ---- tabs
@@ -2915,6 +2918,16 @@ impl AppWindow {
                 let c = p.tabs.remove(from);
                 let to = (i as usize).saturating_sub(1).min(p.tabs.len());
                 p.tabs.insert(to, c);
+            }
+            "tab.pin" => {
+                let Some(id) = Self::owned(a, "id").or(active_ctx) else { return self.fail("no tab to pin") };
+                let Some(pinned) = a.get("pinned").and_then(Value::as_bool).or_else(|| {
+                    let p = self.model.space_of(&id)?;
+                    Some(p.home.as_deref() != Some(&id))
+                }) else { return self.fail(format!("no tab {id:?}")) };
+                if !self.model.pin_home(&id, pinned) {
+                    return self.fail(format!("no tab {id:?}"));
+                }
             }
             "tab.settle" | "tab.unsettle" => {
                 let Some(id) = Self::owned(a, "id").or(active_ctx) else { return self.fail("no tab") };

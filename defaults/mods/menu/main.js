@@ -50,6 +50,9 @@ function items(p, git) {
     case "tab":
       return [
         ["Rename", "tab.rename", { id: tg.id }],
+        spaces().flatMap((s) => s.tabs).find((c) => c.id === tg.id)?.home
+          ? ["Unpin home tab", "tab.pin", { id: tg.id, pinned: false }]
+          : ["Pin as home tab", "tab.pin", { id: tg.id, pinned: true }],
         ["New tab", "tab.new", { space: tg.space }],
         ["Close", "tab.close", { id: tg.id }],
       ];
