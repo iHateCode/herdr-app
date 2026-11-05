@@ -4523,9 +4523,6 @@ fn busy(rec: &Value) -> bool {
     rec["status"] == "working" || !(program("shell") || program("agent"))
 }
 
-/// Whether to ask a terminal's folder for its repo and branch again: only when
-/// the answer could have changed. It moved, a command or an agent's turn just
-/// ended there (a checkout, a commit), or a repo's fallback is due.
 /// `tab.pin`'s `pinned`: absent or null toggles; anything but a boolean is an error.
 fn pin_arg(a: &Value) -> Result<Option<bool>, String> {
     match a.get("pinned") {
@@ -4535,6 +4532,9 @@ fn pin_arg(a: &Value) -> Result<Option<bool>, String> {
     }
 }
 
+/// Whether to ask a terminal's folder for its repo and branch again: only when
+/// the answer could have changed. It moved, a command or an agent's turn just
+/// ended there (a checkout, a commit), or a repo's fallback is due.
 fn recheck(last: Option<&FolderCheck>, cwd: &str, busy: bool, active: bool) -> bool {
     let Some(last) = last else { return true };
     last.cwd != cwd || (last.busy && !busy) || (active && last.repo && last.at.elapsed() > FOLDER_FALLBACK)
