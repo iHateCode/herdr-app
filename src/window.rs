@@ -5422,6 +5422,262 @@ mod tests {
         }));
     }
 
+    /// Two spaces: s1 holds tabs a, b (b was used last), s2 holds c, d (d last).
+    fn pin_world(cx: &mut gpui::TestAppContext) -> (gpui::Entity<super::AppWindow>, &mut gpui::VisualTestContext) {
+        use serde_json::json;
+        cx.update(gpui_base::init);
+        let (view, cx) = open_window(cx, "unused", "", json!({
+            "id": "main", "type": "block", "content": { "tab": "active" }
+        }));
+        cx.update(|window, cx| view.update(cx, |this, cx| {
+            this.model.add_space("s1", "one", "", crate::model::Tab::new("a", "a", "pa", "t1"));
+            this.model.add_tab("s1", crate::model::Tab::new("b", "b", "pb", "t2"));
+            this.model.add_space("s2", "two", "", crate::model::Tab::new("c", "c", "pc", "t3"));
+            this.model.add_tab("s2", crate::model::Tab::new("d", "d", "pd", "t4"));
+            this.sync(window, cx);
+        }));
+        cx.run_until_parked();
+        (view, cx)
+    }
+
+    fn go(view: &gpui::Entity<super::AppWindow>, cx: &mut gpui::VisualTestContext, name: &str, args: serde_json::Value) {
+        cx.update(|window, cx| view.update(cx, |this, cx| this.dispatch(name, &args, true, window, cx)));
+        cx.run_until_parked();
+    }
+
+    fn home_of(view: &gpui::Entity<super::AppWindow>, cx: &mut gpui::VisualTestContext, space: &str) -> Option<String> {
+        cx.update(|_, cx| view.read(cx).model.space(space).unwrap().home.clone())
+    }
+
+    /// (selected space, its selected tab)
+    fn shown(view: &gpui::Entity<super::AppWindow>, cx: &mut gpui::VisualTestContext) -> (String, String) {
+        cx.update(|_, cx| {
+            let m = &view.read(cx).model;
+            (m.active.clone().unwrap(), m.active_tab().unwrap().id.clone())
+        })
+    }
+
+    #[test]
+    fn tab_pin_pins_unpins_toggles_and_moves_the_home_tab() {
+        in_own_process("tab_pin_commands");
+    }
+
+    #[gpui::test]
+    fn tab_pin_commands(cx: &mut gpui::TestAppContext) {
+        use serde_json::json;
+        if !running_alone("tab_pin_commands") {
+            return;
+        }
+        let (view, cx) = pin_world(cx);
+        // Omitted `pinned` toggles.
+        go(&view, cx, "tab.pin", json!({"id": "a"}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("a"));
+        go(&view, cx, "tab.pin", json!({"id": "a"}));
+        assert_eq!(home_of(&view, cx, "s1"), None);
+        // `pinned` is explicit and idempotent.
+        go(&view, cx, "tab.pin", json!({"id": "a", "pinned": true}));
+        go(&view, cx, "tab.pin", json!({"id": "a", "pinned": true}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("a"));
+        // One home tab per space: pinning another tab moves the pin.
+        go(&view, cx, "tab.pin", json!({"id": "b", "pinned": true}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("b"));
+        // Unpinning a tab that is not the home tab changes nothing.
+        go(&view, cx, "tab.pin", json!({"id": "a", "pinned": false}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("b"));
+        go(&view, cx, "tab.pin", json!({"id": "b", "pinned": false}));
+        assert_eq!(home_of(&view, cx, "s1"), None);
+        // Toggling a tab while another is the home tab moves the pin to it.
+        go(&view, cx, "tab.pin", json!({"id": "a", "pinned": true}));
+        go(&view, cx, "tab.pin", json!({"id": "b"}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("b"));
+        go(&view, cx, "tab.pin", json!({"id": "b", "pinned": false}));
+        // A pin in one space never touches another space.
+        go(&view, cx, "tab.pin", json!({"id": "c", "pinned": true}));
+        go(&view, cx, "tab.pin", json!({"id": "a", "pinned": true}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("a"));
+        assert_eq!(home_of(&view, cx, "s2").as_deref(), Some("c"));
+        go(&view, cx, "tab.pin", json!({"id": "d", "pinned": true}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("a"));
+        assert_eq!(home_of(&view, cx, "s2").as_deref(), Some("d"));
+        // A tab that doesn't exist changes nothing.
+        go(&view, cx, "tab.pin", json!({"id": "nope"}));
+        go(&view, cx, "tab.pin", json!({"id": "nope", "pinned": true}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("a"));
+        assert_eq!(home_of(&view, cx, "s2").as_deref(), Some("d"));
+    }
+
+    #[test]
+    fn tab_pin_rejects_a_pinned_that_is_not_a_boolean() {
+        in_own_process("tab_pin_bad_pinned");
+    }
+
+    #[gpui::test]
+    fn tab_pin_bad_pinned(cx: &mut gpui::TestAppContext) {
+        use serde_json::json;
+        if !running_alone("tab_pin_bad_pinned") {
+            return;
+        }
+        let (view, cx) = pin_world(cx);
+        go(&view, cx, "tab.pin", json!({"id": "b", "pinned": true}));
+        for bad in [json!("false"), json!("true"), json!(0), json!(1), json!([])] {
+            cx.update(|_, cx| view.update(cx, |this, _| this.reply = None));
+            go(&view, cx, "tab.pin", json!({"id": "b", "pinned": bad.clone()}));
+            let reply = cx.update(|_, cx| view.read(cx).reply.clone());
+            assert!(reply.as_ref().and_then(|r| r.get("error")).is_some(), "pinned {bad} must be an error, got {reply:?}");
+            assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("b"), "pinned {bad} must not toggle the pin");
+        }
+    }
+
+    #[test]
+    fn tab_pin_without_an_id_means_the_selected_tab() {
+        in_own_process("tab_pin_default_id");
+    }
+
+    #[gpui::test]
+    fn tab_pin_default_id(cx: &mut gpui::TestAppContext) {
+        use serde_json::json;
+        if !running_alone("tab_pin_default_id") {
+            return;
+        }
+        let (view, cx) = pin_world(cx);
+        go(&view, cx, "tab.select", json!({"id": "a"}));
+        go(&view, cx, "tab.pin", json!({}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("a"));
+        go(&view, cx, "tab.pin", json!({}));
+        assert_eq!(home_of(&view, cx, "s1"), None);
+        go(&view, cx, "tab.pin", json!({"pinned": true}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("a"));
+        go(&view, cx, "tab.select", json!({"id": "b"}));
+        go(&view, cx, "tab.pin", json!({"pinned": true}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("b"), "the selected tab, not the old home tab");
+        go(&view, cx, "tab.pin", json!({"pinned": false}));
+        assert_eq!(home_of(&view, cx, "s1"), None);
+        assert_eq!(home_of(&view, cx, "s2"), None);
+    }
+
+    #[test]
+    fn switching_to_a_space_lands_on_its_home_tab() {
+        in_own_process("pin_landing");
+    }
+
+    #[gpui::test]
+    fn pin_landing(cx: &mut gpui::TestAppContext) {
+        use serde_json::json;
+        if !running_alone("pin_landing") {
+            return;
+        }
+        let (view, cx) = pin_world(cx);
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()));
+        go(&view, cx, "tab.pin", json!({"id": "c", "pinned": true}));
+        // Pinning a tab doesn't move the person: the shown tab stays.
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()));
+
+        // A space with no home tab keeps today's behaviour: its last-used tab.
+        go(&view, cx, "space.select", json!({"id": "s1"}));
+        assert_eq!(shown(&view, cx), ("s1".into(), "b".into()));
+        // By id, the home tab wins over the last-used one.
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "c".into()));
+        // By index.
+        go(&view, cx, "tab.select", json!({"id": "d"}));
+        go(&view, cx, "space.select", json!({"index": 1}));
+        assert_eq!(shown(&view, cx), ("s1".into(), "b".into()));
+        go(&view, cx, "space.select", json!({"index": 2}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "c".into()));
+        // Next and previous, with wrap-around both ways.
+        go(&view, cx, "tab.select", json!({"id": "d"}));
+        go(&view, cx, "space.next", json!({}));
+        assert_eq!(shown(&view, cx), ("s1".into(), "b".into()));
+        go(&view, cx, "space.next", json!({}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "c".into()));
+        go(&view, cx, "tab.select", json!({"id": "d"}));
+        go(&view, cx, "space.prev", json!({}));
+        assert_eq!(shown(&view, cx), ("s1".into(), "b".into()));
+        go(&view, cx, "space.prev", json!({}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "c".into()));
+        // Selecting the space that is already shown jumps to its home tab.
+        go(&view, cx, "tab.select", json!({"id": "d"}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()));
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "c".into()));
+        go(&view, cx, "tab.select", json!({"index": 2}));
+        go(&view, cx, "space.select", json!({"index": 2}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "c".into()));
+        // Inside the space, tabs still select freely, home tab or not.
+        go(&view, cx, "tab.select", json!({"id": "d"}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()));
+        go(&view, cx, "tab.prev", json!({}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "c".into()));
+        go(&view, cx, "tab.next", json!({}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()));
+        // Unpinned, the space goes back to its last-used tab.
+        go(&view, cx, "tab.pin", json!({"id": "c", "pinned": false}));
+        go(&view, cx, "space.select", json!({"id": "s1"}));
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()));
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()), "no home tab: selecting the shown space changes nothing");
+        // The last-used tab of an unpinned space is what was shown last, not the first.
+        go(&view, cx, "tab.select", json!({"id": "b"}));
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        go(&view, cx, "space.select", json!({"id": "s1"}));
+        assert_eq!(shown(&view, cx), ("s1".into(), "b".into()));
+        // No last-used tab at all: the first.
+        cx.update(|_, cx| { view.update(cx, |this, _| { this.model.space_mut("s1").unwrap().active = None; }) });
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        go(&view, cx, "space.select", json!({"id": "s1"}));
+        assert_eq!(shown(&view, cx), ("s1".into(), "a".into()));
+    }
+
+    #[test]
+    fn a_stale_home_tab_does_not_steer_the_landing() {
+        in_own_process("pin_landing_stale");
+    }
+
+    #[gpui::test]
+    fn pin_landing_stale(cx: &mut gpui::TestAppContext) {
+        use serde_json::json;
+        if !running_alone("pin_landing_stale") {
+            return;
+        }
+        let (view, cx) = pin_world(cx);
+        cx.update(|_, cx| { view.update(cx, |this, _| { this.model.space_mut("s2").unwrap().home = Some("ghost".into()); }) });
+        go(&view, cx, "space.select", json!({"id": "s1"}));
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()), "a pin on a tab that is gone is ignored");
+        // A tab of another space is not this space's home tab either.
+        cx.update(|_, cx| { view.update(cx, |this, _| { this.model.space_mut("s2").unwrap().home = Some("a".into()); }) });
+        go(&view, cx, "space.select", json!({"id": "s1"}));
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        assert_eq!(shown(&view, cx), ("s2".into(), "d".into()));
+    }
+
+    #[test]
+    fn closing_the_home_tab_clears_the_pin() {
+        in_own_process("pin_close_home");
+    }
+
+    #[gpui::test]
+    fn pin_close_home(cx: &mut gpui::TestAppContext) {
+        use serde_json::json;
+        if !running_alone("pin_close_home") {
+            return;
+        }
+        let (view, cx) = pin_world(cx);
+        go(&view, cx, "tab.pin", json!({"id": "c", "pinned": true}));
+        go(&view, cx, "tab.pin", json!({"id": "a", "pinned": true}));
+        // Closing a tab that is not the home tab leaves the pin.
+        go(&view, cx, "tab.close", json!({"id": "d"}));
+        assert_eq!(home_of(&view, cx, "s1").as_deref(), Some("a"));
+        // s1 has two tabs: closing its home tab clears the pin and only that one.
+        go(&view, cx, "tab.close", json!({"id": "a"}));
+        assert_eq!(home_of(&view, cx, "s1"), None);
+        assert_eq!(home_of(&view, cx, "s2").as_deref(), Some("c"));
+        go(&view, cx, "space.select", json!({"id": "s2"}));
+        go(&view, cx, "space.select", json!({"id": "s1"}));
+        assert_eq!(shown(&view, cx), ("s1".into(), "b".into()));
+    }
+
     /// Mods see window().active follow the focus, losing it too: a probe mod
     /// notes every value it renders with while the window is focused and
     /// blurred, and the poll that checks the focus runs in between.

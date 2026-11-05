@@ -331,6 +331,103 @@ mod tests {
         doc.replace(&mut m, Some("a"));
         assert_eq!(m.spaces.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(), ["s2", "s", "a/s", "z/s"]);
     }
+    fn two_tabs() -> Model {
+        let mut m = model();
+        m.add_tab("s", Tab::new("t2", "docs", "p2", "t3"));
+        m
+    }
+    #[test]
+    fn the_home_tab_is_private_to_this_screen() {
+        let mut m = two_tabs();
+        let before = Document::capture(&m, None);
+        m.space_mut("s").unwrap().home = Some("t2".into());
+        assert_eq!(before, Document::capture(&m, None), "a pin is not part of the shared layout document");
+    }
+    #[test]
+    fn home_tabs_are_captured_per_space() {
+        let mut m = two_tabs();
+        assert!(View::capture(&m).homes.is_empty());
+        m.space_mut("s").unwrap().home = Some("t2".into());
+        assert_eq!(View::capture(&m).homes, BTreeMap::from([("s".to_owned(), "t2".to_owned())]));
+    }
+    #[test]
+    fn view_json_round_trips_the_home_tab() {
+        let mut m = two_tabs();
+        m.space_mut("s").unwrap().home = Some("t2".into());
+        let text = serde_json::to_string(&View::capture(&m)).unwrap();
+        assert!(text.contains("\"homes\""), "{text}");
+        let loaded: View = serde_json::from_str(&text).unwrap();
+        assert_eq!(loaded.homes.get("s").map(String::as_str), Some("t2"));
+        let mut fresh = Model::default();
+        Document::capture(&m, None).replace(&mut fresh, None);
+        assert_eq!(fresh.space("s").unwrap().home, None);
+        loaded.apply(&mut fresh);
+        assert_eq!(fresh.space("s").unwrap().home.as_deref(), Some("t2"));
+    }
+    #[test]
+    fn a_stale_home_tab_is_ignored_when_a_view_is_applied() {
+        let mut m = two_tabs();
+        let mut view = View::capture(&m);
+        view.homes.insert("s".into(), "gone".into());
+        view.apply(&mut m);
+        assert_eq!(m.space("s").unwrap().home, None);
+        // A tab that exists, but in another space, is no home of this one.
+        m.add_space("s2", "other", "/o", Tab::new("u", "task", "q", "t9"));
+        let mut view = View::capture(&m);
+        view.homes.insert("s".into(), "u".into());
+        view.homes.insert("nospace".into(), "t".into());
+        view.apply(&mut m);
+        assert_eq!(m.space("s").unwrap().home, None);
+        assert_eq!(m.space("s2").unwrap().home, None);
+    }
+    #[test]
+    fn a_document_sync_keeps_the_home_tab() {
+        let mut m = two_tabs();
+        m.space_mut("s").unwrap().home = Some("t2".into());
+        let doc = Document::capture(&m, None);
+        doc.replace(&mut m, None);
+        assert_eq!(m.space("s").unwrap().home.as_deref(), Some("t2"));
+        // Replacing one machine's block leaves the other machines' pins alone.
+        doc.replace(&mut m, Some("mac"));
+        assert_eq!(m.space("s").unwrap().home.as_deref(), Some("t2"));
+        assert_eq!(m.space("mac/s").unwrap().home, None);
+    }
+    #[test]
+    fn a_synced_document_without_the_pinned_tab_drops_the_pin() {
+        let mut m = two_tabs();
+        m.space_mut("s").unwrap().home = Some("t2".into());
+        let mut other = two_tabs();
+        other.remove_tab("t2");
+        Document::capture(&other, None).replace(&mut m, None);
+        assert_eq!(m.space("s").unwrap().home, None);
+    }
+    #[test]
+    fn a_late_remote_load_restores_only_that_machines_home_tabs() {
+        let mut m = two_tabs();
+        Document::capture(&m, None).replace(&mut m, Some("mac"));
+        m.space_mut("mac/s").unwrap().home = Some("mac/t2".into());
+        m.space_mut("s").unwrap().home = Some("t2".into());
+        let saved = View::capture(&m);
+        let doc = Document::capture(&m, Some("mac"));
+        m.spaces.retain(|s| s.machine.is_none());
+        m.space_mut("s").unwrap().home = Some("t".into());
+        doc.replace(&mut m, Some("mac"));
+        saved.apply_machine(&mut m, Some("mac"));
+        assert_eq!(m.space("mac/s").unwrap().home.as_deref(), Some("mac/t2"));
+        assert_eq!(m.space("s").unwrap().home.as_deref(), Some("t"), "this machine's choice made meanwhile stays");
+    }
+    #[test]
+    fn home_tabs_of_machines_not_loaded_yet_are_kept_when_saving() {
+        let mut m = two_tabs();
+        Document::capture(&m, None).replace(&mut m, Some("mac"));
+        m.space_mut("mac/s").unwrap().home = Some("mac/t2".into());
+        let saved = View::capture(&m);
+        let mut now = Model::default();
+        Document::capture(&m, None).replace(&mut now, None);
+        let mut view = View::capture(&now);
+        view.preserve_unloaded(&saved, |machine| machine.is_none());
+        assert_eq!(view.homes.get("mac/s").map(String::as_str), Some("mac/t2"));
+    }
     #[test]
     fn fresh_ids_are_not_a_per_screen_counter() {
         assert_ne!(Model::default().fresh_id("p"), Model::default().fresh_id("p"));
@@ -357,8 +454,10 @@ mod tests {
     fn an_old_view_without_homes_loads_and_a_dead_pin_is_dropped() {
         let old: View = serde_json::from_str(r#"{"active":"s","spaces":{},"tabs":{},"recent":[],"attention":{}}"#).unwrap();
         let mut m = model();
+        m.space_mut("s").unwrap().home = Some("t".into());
+        assert!(old.homes.is_empty());
         old.apply(&mut m);
-        assert_eq!(m.space("s").unwrap().home, None);
+        assert_eq!(m.space("s").unwrap().home, None, "a file that knows no home tab leaves none");
         let mut stale = View::capture(&m);
         stale.homes.insert("s".into(), "gone".into());
         stale.apply(&mut m);

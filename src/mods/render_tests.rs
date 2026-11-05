@@ -813,3 +813,170 @@ fn status_bar_shows_the_real_palette_key(cx: &mut TestAppContext) {
     assert!(tree.contains("commands"), "unbound hint still offers commands: {tree}");
     assert!(!tree.contains("Shift P"), "unbound hint must not invent a key: {tree}");
 }
+
+// ---- the pinned home tab and the space dot
+
+fn tab_json(id: &str, index: u32, name: &str, status: Value, active: bool, home: bool) -> Value {
+    json!({"id":id,"index":index,"name":name,"active":active,"status":status,"panes":1,"zoomed":false,"settled":false,"settled_at":null,"changed_at":null,"working_since":null,"home":home})
+}
+
+/// A space as the mods see it. `home`: the live home tab's id.
+fn space_json_fixture(id: &str, index: u32, name: &str, status: Value, active: bool, home: Option<&str>, tabs: Vec<(&str, Value)>) -> Value {
+    let tabs: Vec<Value> = tabs
+        .into_iter()
+        .enumerate()
+        .map(|(i, (tab, status))| tab_json(tab, i as u32 + 1, &format!("{name} {tab}"), status, i == 0, home == Some(tab)))
+        .collect();
+    json!({"id":id,"index":index,"name":name,"folder":format!("/fixture/{id}"),"machine":null,"branch":null,"active":active,"status":status,"home":home,"tabs":tabs})
+}
+
+/// The sidebar `width` px wide (268 is the wide list, 44 the rail) showing `spaces`.
+fn sidebar_values(width: u32, spaces: Vec<Value>) -> BTreeMap<String, Value> {
+    let mut values = fixture(true, props(), updates("current", "current"));
+    values.insert("spaces".into(), Value::Array(spaces));
+    values.get_mut("layout").unwrap()["children"][0]["size"]["px"] = json!(width);
+    values
+}
+
+/// Each dot with the element that colours it (the line above its text).
+fn dots(tree: &str) -> Vec<String> {
+    let lines: Vec<&str> = tree.lines().collect();
+    (0..lines.len()).filter(|&i| lines[i].contains('●')).map(|i| format!("{} {}", i.checked_sub(1).map_or("", |j| lines[j]), lines[i])).collect()
+}
+
+fn spaces_tree(cx: &mut TestAppContext, staged: &Staged, width: u32, spaces: Vec<Value>) -> String {
+    let tree = describe_with_values(cx, staged, "mods/spaces", sidebar_values(width, spaces), None).unwrap();
+    if width >= 160 {
+        assert!(tree.contains("Alpha"), "the wide list shows the space's name: {tree}");
+    }
+    tree
+}
+
+fn one_space(status: &str, home: Option<&str>, tabs: Vec<(&str, &str)>) -> Vec<Value> {
+    let tabs = tabs.into_iter().map(|(id, s)| (id, json!(s))).collect();
+    vec![space_json_fixture("s1", 1, "Alpha", json!(status), true, home, tabs)]
+}
+
+#[gpui::test]
+fn wide_space_rows_show_the_dot_for_blocked_and_done_only(cx: &mut TestAppContext) {
+    cx.update(gpui_shell::init);
+    let staged = Staged::new();
+    for (status, lit) in [("blocked", true), ("done", true), ("working", false), ("idle", false)] {
+        let tree = spaces_tree(cx, &staged, 268, one_space(status, None, vec![("t1", status)]));
+        assert_eq!(!dots(&tree).is_empty(), lit, "wide row, space {status}: {tree}");
+    }
+    let tree = spaces_tree(cx, &staged, 268, vec![
+        space_json_fixture("s1", 1, "Alpha", json!("working"), true, None, vec![("t1", json!("working"))]),
+        space_json_fixture("s2", 2, "Bravo", json!("done"), false, None, vec![("t2", json!("done"))]),
+    ]);
+    assert_eq!(dots(&tree).len(), 1, "only the space that needs you has a dot: {tree}");
+}
+
+#[gpui::test]
+fn the_wide_dot_uses_the_rails_colours(cx: &mut TestAppContext) {
+    cx.update(gpui_shell::init);
+    let staged = Staged::new();
+    let line = |cx: &mut TestAppContext, width, status: &str| {
+        let tree = spaces_tree(cx, &staged, width, one_space(status, None, vec![("t1", status)]));
+        let lines = dots(&tree);
+        assert_eq!(lines.len(), 1, "{width}px, {status}: {tree}");
+        lines[0].clone()
+    };
+    let tokens = |l: &str| -> BTreeSet<String> {
+        l.split(|c: char| !c.is_alphanumeric() && c != '#' && c != '.').filter(|t| !t.is_empty()).map(str::to_owned).collect()
+    };
+    let (rail_blocked, rail_done) = (tokens(&line(cx, 44, "blocked")), tokens(&line(cx, 44, "done")));
+    let (wide_blocked, wide_done) = (tokens(&line(cx, 268, "blocked")), tokens(&line(cx, 268, "done")));
+    let blocked: BTreeSet<_> = rail_blocked.difference(&rail_done).cloned().collect();
+    let done: BTreeSet<_> = rail_done.difference(&rail_blocked).cloned().collect();
+    assert!(!blocked.is_empty() && !done.is_empty(), "the rail colours blocked and done differently: {rail_blocked:?} vs {rail_done:?}");
+    assert!(blocked.is_subset(&wide_blocked) && blocked.is_disjoint(&wide_done), "wide blocked dot: the rail's colour");
+    assert!(done.is_subset(&wide_done) && done.is_disjoint(&wide_blocked), "wide done dot: the rail's colour");
+}
+
+#[gpui::test]
+fn the_dot_follows_the_home_tab_and_any_blocked_tab_when_there_is_a_home_tab(cx: &mut TestAppContext) {
+    cx.update(gpui_shell::init);
+    let staged = Staged::new();
+    for width in [268, 44] {
+        // Another tab is done, the home tab is idle: no dot.
+        let tree = spaces_tree(cx, &staged, width, one_space("done", Some("t1"), vec![("t1", "idle"), ("t2", "done")]));
+        assert!(dots(&tree).is_empty(), "{width}px: a tab other than the home tab finished: {tree}");
+        // Another tab is blocked, the home tab is working: blocked anywhere lights the dot.
+        let tree = spaces_tree(cx, &staged, width, one_space("blocked", Some("t1"), vec![("t1", "working"), ("t2", "blocked")]));
+        assert_eq!(dots(&tree).len(), 1, "{width}px: a blocked tab other than the home tab: {tree}");
+        // ... in the blocked colour, as for a blocked home tab.
+        let blocked_home = spaces_tree(cx, &staged, width, one_space("blocked", Some("t1"), vec![("t1", "blocked"), ("t2", "idle")]));
+        assert_eq!(dots(&tree), dots(&blocked_home), "{width}px: same dot, same colour");
+        // A done tab other than the home tab stays hidden even beside a working home tab.
+        let tree = spaces_tree(cx, &staged, width, one_space("working", Some("t1"), vec![("t1", "working"), ("t2", "done")]));
+        assert!(dots(&tree).is_empty(), "{width}px: {tree}");
+        // The home tab itself needs you: dot, even if the space's own status says otherwise.
+        for status in ["done", "blocked"] {
+            let tree = spaces_tree(cx, &staged, width, one_space("working", Some("t2"), vec![("t1", "idle"), ("t2", status)]));
+            assert_eq!(dots(&tree).len(), 1, "{width}px: the home tab is {status}: {tree}");
+        }
+        // No home tab: the whole space's status, as before.
+        let tree = spaces_tree(cx, &staged, width, one_space("done", None, vec![("t1", "idle"), ("t2", "done")]));
+        assert_eq!(dots(&tree).len(), 1, "{width}px: no home tab, another tab is done: {tree}");
+        let tree = spaces_tree(cx, &staged, width, one_space("idle", None, vec![("t1", "idle"), ("t2", "idle")]));
+        assert!(dots(&tree).is_empty(), "{width}px: {tree}");
+    }
+}
+
+#[gpui::test]
+fn each_space_gets_its_own_dot_by_its_own_home_tab(cx: &mut TestAppContext) {
+    cx.update(gpui_shell::init);
+    let staged = Staged::new();
+    for width in [268, 44] {
+        let tree = spaces_tree(cx, &staged, width, vec![
+            space_json_fixture("s1", 1, "Alpha", json!("done"), true, Some("t1"), vec![("t1", json!("idle")), ("t2", json!("done"))]),
+            space_json_fixture("s2", 2, "Bravo", json!("done"), false, None, vec![("t3", json!("done"))]),
+            space_json_fixture("s3", 3, "Charlie", json!("blocked"), false, Some("t5"), vec![("t4", json!("idle")), ("t5", json!("blocked"))]),
+        ]);
+        assert_eq!(dots(&tree).len(), 2, "{width}px: Alpha is quiet, Bravo and Charlie need you: {tree}");
+    }
+}
+
+fn tab_menu_tree(cx: &mut TestAppContext, staged: &Staged, home: Option<&str>) -> String {
+    let mut values = sidebar_values(268, vec![space_json_fixture("s1", 1, "Alpha", json!("idle"), true, home, vec![("tab1", json!("idle")), ("tab2", json!("idle"))])]);
+    let mut p = props();
+    p.as_object_mut().unwrap().extend(json!({"tab":"tab","target":{"id":"tab1","space":"s1"}}).as_object().unwrap().clone());
+    values.insert("props".into(), p);
+    describe_with_values(cx, staged, "mods/menu", values, None).unwrap()
+}
+
+#[gpui::test]
+fn the_tab_menu_offers_pin_or_unpin_as_home_tab(cx: &mut TestAppContext) {
+    cx.update(gpui_shell::init);
+    let staged = Staged::new();
+    let plain = tab_menu_tree(cx, &staged, None);
+    assert!(plain.contains("Pin as home tab"), "{plain}");
+    assert!(!plain.contains("Unpin home tab"), "{plain}");
+    let pinned = tab_menu_tree(cx, &staged, Some("tab1"));
+    assert!(pinned.contains("Unpin home tab"), "{pinned}");
+    assert!(!pinned.contains("Pin as home tab"), "{pinned}");
+    // Another tab is the home tab: this one can be pinned (the pin moves).
+    let other = tab_menu_tree(cx, &staged, Some("tab2"));
+    assert!(other.contains("Pin as home tab") && !other.contains("Unpin home tab"), "{other}");
+}
+
+fn tabs_tree(cx: &mut TestAppContext, staged: &Staged, home: Option<&str>) -> String {
+    let values = sidebar_values(268, vec![space_json_fixture("s1", 1, "Alpha", json!(null), true, home, vec![("tab1", json!(null)), ("tab2", json!(null))])]);
+    describe_with_values(cx, staged, "mods/tabs", values, None).unwrap()
+}
+
+#[gpui::test]
+fn the_home_tab_shows_a_pin_marker_in_the_tab_bar(cx: &mut TestAppContext) {
+    cx.update(gpui_shell::init);
+    let staged = Staged::new();
+    let has_pin = |tree: &str| tree.contains("mods/tabs/pin.svg");
+    let plain = tabs_tree(cx, &staged, None);
+    assert!(plain.contains("tab-tab1") && plain.contains("tab-tab2"), "{plain}");
+    assert!(!has_pin(&plain), "no home tab, no marker: {plain}");
+    let first = tabs_tree(cx, &staged, Some("tab1"));
+    let second = tabs_tree(cx, &staged, Some("tab2"));
+    assert!(has_pin(&first) && has_pin(&second), "the home tab has a pin marker:\n{first}\n{second}");
+    assert_eq!((first.matches("pin.svg").count(), second.matches("pin.svg").count()), (1, 1), "one marker, on the home tab only");
+    assert_ne!(first, second, "the marker sits on the home tab, not on every tab");
+}
