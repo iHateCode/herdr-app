@@ -33,7 +33,6 @@ focused pane.
 ```sh
 herdr-app do space.new --name api --folder /path/to/api
 herdr-app do tab.new --name "fix login" --argv '["claude"]' --task "Look at the login bug"
-herdr-app do tab.pin --id tb3   # home tab: showing its space shows it
 herdr-app do pane.split --direction right --pane p12
 herdr-app do agent.focus --terminal t7
 ```
@@ -144,3 +143,12 @@ Never experiment with pointer/key automation on the person's real display.
 When developing the app on Linux, its `scripts/sandbox` provides an isolated
 home, core and display: `up`, `do`, `status`, `shot`, then `down` when done.
 Never stop a server or session you didn't start.
+
+## Fork additions
+
+This fork pins a **home tab** per space: showing a space shows its pinned tab,
+also when that space is already shown.
+
+```sh
+herdr-app do tab.pin --id tb3   # home tab: showing its space shows it
+```

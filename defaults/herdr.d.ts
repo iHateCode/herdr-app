@@ -94,8 +94,6 @@ export interface TabInfo {
   named: boolean;
   /** The one its space shows. */
   active: boolean;
-  /** Pinned as its space's home tab (tab.pin): showing the space shows it. */
-  home: boolean;
   /** Most urgent agent status in it, or null. */
   status: Status | null;
   panes: number;
@@ -129,8 +127,6 @@ export interface SpaceInfo {
   active: boolean;
   /** Most urgent agent status in it (blocked > done > working > idle), or null. */
   status: Status | null;
-  /** The id of its home tab (tab.pin), or null. */
-  home: string | null;
   tabs: TabInfo[];
 }
 
@@ -417,3 +413,18 @@ export function nextCommand(): Promise<string>;
  * Watch what you show, not a whole home folder (node_modules is a lot of events).
  */
 export function watchFolder(path: string): Promise<string[]>;
+
+// Fork additions
+//
+// These merge into TabInfo and SpaceInfo above by TypeScript interface
+// declaration merging, so a mod sees one type with `home` on it.
+
+export interface TabInfo {
+  /** Pinned as its space's home tab (tab.pin): showing the space shows it. */
+  home: boolean;
+}
+
+export interface SpaceInfo {
+  /** The id of its home tab (tab.pin), or null. */
+  home: string | null;
+}

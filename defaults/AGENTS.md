@@ -121,14 +121,6 @@ the highlighted line shows where it will land.
   ...), as in Herdr; `tab.rename` names it ("fix login"). A space
   has one or more; closing the last one closes the space (it stays in
   `recent`).
-- A tab can be pinned as its space's **home tab** (`tab.pin`, or right-click a
-  tab); one per space, kept on this screen. Showing the space (a click, its
-  number key, `space.select`, `space.next`, `space.prev`) shows its home tab,
-  also when the space is already shown. `home` is the tab's id on a space
-  and a boolean on a tab. The space list's dot follows the home tab's
-  status when there is one, except that a blocked tab anywhere in the space
-  still lights it. A settled tab can be pinned; showing its space
-  brings it back.
 - A tab can be **settled** (`tab.settle`): put away on this screen, still running;
   `settled` on each tab. The shipped layouts don't use it (they list every
   tab); a mod that does can hide or fold settled tabs. Showing one, or an
@@ -560,8 +552,7 @@ The main ones:
   `tab.rename {id?, name}` ("": its number again), `tab.move {id, index}`,
   `tab.select {index | id}`, `tab.next`, `tab.prev`,
   `tab.settle {id?}`, `tab.unsettle {id?}` (index, next and prev
-  skip settled tabs), `tab.pin {id?, pinned?}` (home tab: omitted `pinned`
-  toggles).
+  skip settled tabs).
 - Panes: `pane.split {direction: "right" | "down", pane?, argv? | mod?, props?}` (a new
   terminal, or a mod pane), `pane.close {pane?}`,
   `pane.zoom {pane?}`, `pane.focus {pane | terminal}`, `pane.go {direction}`, `pane.swap {direction}`.
@@ -683,8 +674,7 @@ What's about the user, never a look:
   its What's new button opens the waiting update's release range, or this
   version's notes, in the What's new window. Reading never clears the waiting-update dot.
   Rare spotlight releases open What’s new after restart, once; otherwise a
-  quiet Updated pill lasts for that launch. A build from source never updates,
-  and neither does one made with `HERDR_APP_NO_SELF_UPDATE` (a fork's): the app stays as installed; the core still updates.
+  quiet Updated pill lasts for that launch. A build from source never updates.
   Curated notes come from the bundled root `CHANGELOG.md`; remote notes and
   media are optional. `update-notes.json` records the last successful app
   version and presented spotlights; `update-notes-cache.md` caches remote
@@ -1032,3 +1022,22 @@ including a small herdr-core skill you can install with the user's permission.
 - One mod per idea. Don't edit `AGENTS.md` or the `.d.ts` files (the app
   rewrites them). Don't touch other mods unless the request
   needs it.
+
+## Fork additions
+
+This fork adds a **home tab** per space. These notes sit on top of the guide
+above; where the two disagree, this section wins.
+
+- **Pinning.** A tab can be pinned as its space's **home tab** (`tab.pin`, or
+  right-click a tab); one per space, kept on this screen. Showing the space (a
+  click, its number key, `space.select`, `space.next`, `space.prev`) shows its
+  home tab, also when the space is already shown. `home` is the tab's id on a
+  space and a boolean on a tab. The space list's dot follows the home tab's
+  status when there is one, except that a blocked tab anywhere in the space
+  still lights it. A settled tab can be pinned; showing its space brings it
+  back.
+- **The command.** `tab.pin {id?, pinned?}` (home tab: omitted `pinned`
+  toggles), alongside the other tab commands above.
+- **Self-update.** A build from source never updates, and neither does one
+  made with `HERDR_APP_NO_SELF_UPDATE` (a fork's): the app stays as
+  installed; the core still updates.
