@@ -21,3 +21,13 @@ See [build from source](README.md#build-from-source) for setup. Run `just build`
 Keep OS-specific code only where the OS really differs. Keep small quirks near their use; put larger differences behind one small module per concern. Test Windows and macOS changes on those systems.
 
 When dependencies or bundled assets change, update their licenses and run `just notices`. See [licenses](licenses/README.md).
+
+## This fork
+
+This is a long-lived fork of [herdrdev/herdr-app](https://github.com/herdrdev/herdr-app). It is kept for good, it is customised freely, and it syncs from upstream often. Build every change so that the next upstream sync conflicts as little as possible.
+
+- **Prefer a mod.** If a mod or a personal copy of a mod can do it, build it that way, not in the app's core.
+- **New code goes in new files.** When the core must change, put the logic in a new file and add only a short hook (a line or two) to the upstream files.
+- **Add docs at the end.** Fork additions to upstream docs go in one block at the end of the file, headed `## Fork additions`, never mid-file.
+- **Leave upstream's lines alone.** Do not reword, reformat or reorder upstream text or code for its own sake.
+- **No waiting on upstream.** Rules in upstream's docs that require the upstream maintainer's approval do not apply to work in this fork.
