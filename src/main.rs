@@ -28,6 +28,7 @@ mod remote_shell;
 mod settings;
 mod setup;
 mod sound;
+mod sound_filter;
 mod spawn;
 mod sprites;
 mod telemetry;

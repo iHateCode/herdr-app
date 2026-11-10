@@ -2079,11 +2079,22 @@ impl AppWindow {
         }
     }
 
+    /// Fork addition: `sounds.only` (see sound_filter.rs), matched against the agent's own name and its tab's name.
+    fn sound_wanted(&self, addr: &str) -> bool {
+        let rec = self.live.get(addr).and_then(|r| r.get("name").and_then(Value::as_str));
+        let tab = self.model.pane_of(&self.root_agent(addr)).and_then(|pane| {
+            let (p, c) = (self.model.space_of(&pane)?, self.model.tab_of(&pane)?);
+            Some(Model::tab_name(p, c))
+        });
+        let names: Vec<&str> = rec.into_iter().chain(tab.as_deref()).collect();
+        crate::sound_filter::wanted(settings::get().sounds.only.as_deref(), &names)
+    }
+
     /// Tells the person an agent needs them or finished: Herdr's sounds, and a
     /// toast (drawn by the `toast` mod; click it to go there) unless they're
     /// looking at that agent.
     fn alert(&mut self, addr: &str, alert: model::Alert, looking: bool, window: &mut Window, cx: &mut Context<Self>) {
-        if settings::get().sounds.enabled {
+        if settings::get().sounds.enabled && self.sound_wanted(addr) {
             crate::sound::play(if alert == model::Alert::Blocked { "blocked" } else { "done" });
         }
         // Needing the person brings a settled tab back.

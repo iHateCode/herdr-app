@@ -1056,3 +1056,8 @@ above; where the two disagree, this section wins.
 - **Self-update.** A build from source never updates, and neither does one
   made with `HERDR_APP_NO_SELF_UPDATE` (a fork's): the app stays as
   installed; the core still updates.
+- **Sounds for some agents only.** `settings.json` takes `sounds.only`, text
+  that an agent's name must contain to make a sound, for example
+  `{ "sounds": { "enabled": true, "only": "-cmdr-" } }`. The name is the
+  agent's own name or its tab's name. Absent or empty, every agent sounds.
+  Toasts are not filtered.

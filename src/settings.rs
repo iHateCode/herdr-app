@@ -508,11 +508,14 @@ pub struct Sounds {
     pub done: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub blocked: Option<String>,
+    /// Fork addition: only agents whose name contains this text make a sound.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub only: Option<String>,
 }
 
 impl Default for Sounds {
     fn default() -> Self {
-        Sounds { enabled: true, done: None, blocked: None }
+        Sounds { enabled: true, done: None, blocked: None, only: None }
     }
 }
 
