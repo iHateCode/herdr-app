@@ -41,6 +41,7 @@ function items(p, git) {
               ["Split right", "pane.split", { direction: "right", pane: tg.pane }],
               ["Split down", "pane.split", { direction: "down", pane: tg.pane }],
               ["Zoom", "pane.zoom", { pane: tg.pane }],
+              ["Rename", "pane.rename", { pane: tg.pane }],
             ]
           : []),
         ...(term
@@ -83,7 +84,7 @@ function items(p, git) {
 }
 
 function menuIcon(command, args) {
-  const name = command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "app.help" ? "terminal" : command === "app.theme" ? "settings" : command === "pane.split" ? "panel-right" : command === "pane.zoom" ? "square" : command === "tab.pin" ? (args?.pinned ? "pin" : "pin-off") : "terminal";
+  const name = command.endsWith(".close") ? "x" : command.endsWith(".rename") ? "square-pen" : command.endsWith(".new") ? "plus" : command === "worktree" ? "git-branch" : command === "app.help" ? "terminal" : command === "app.theme" ? "settings" : command === "pane.split" ? (args?.direction === "down" ? "panel-bottom" : "panel-right") : command === "pane.zoom" ? "square" : command === "tab.pin" ? (args?.pinned ? "pin" : "pin-off") : "terminal";
   return `mods/workspace-chrome/${name}.svg`;
 }
 
