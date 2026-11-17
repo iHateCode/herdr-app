@@ -227,6 +227,7 @@ impl View {
                 }
             }
         }
+        crate::home_pin::follow(model, &self.homes);
         model.active = self.active.clone().filter(|id| model.space(id).is_some()).or_else(|| model.spaces.first().map(|s| s.id.clone()));
         model.recent = self.recent.clone();
         for (a, s) in &self.attention {
@@ -403,14 +404,13 @@ mod tests {
         view.homes.insert("s".into(), "gone".into());
         view.apply(&mut m);
         assert_eq!(m.space("s").unwrap().home, None);
-        // A tab that exists, but in another space, is no home of this one.
+        // A pinned tab now in another space is that space's home (it followed its tab).
         m.add_space("s2", "other", "/o", Tab::new("u", "task", "q", "t9"));
         let mut view = View::capture(&m);
         view.homes.insert("s".into(), "u".into());
-        view.homes.insert("nospace".into(), "t".into());
         view.apply(&mut m);
         assert_eq!(m.space("s").unwrap().home, None);
-        assert_eq!(m.space("s2").unwrap().home, None);
+        assert_eq!(m.space("s2").unwrap().home.as_deref(), Some("u"));
     }
     #[test]
     fn a_document_sync_keeps_the_home_tab() {

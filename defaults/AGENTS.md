@@ -1182,7 +1182,8 @@ above; where the two disagree, this section wins.
   space and a boolean on a tab. The space list's dot follows the home tab's
   status when there is one, except that a blocked tab anywhere in the space
   still lights it. A settled tab can be pinned; showing its space brings it
-  back.
+  back. A home tab that ends up in another space (a sync, or a terminal sent
+  back and kept again) becomes that space's home tab, replacing any it had.
 - **The command.** `tab.pin {id?, pinned?}` (home tab: omitted `pinned`
   toggles), alongside the other tab commands above.
 - **Self-update.** A build from source never updates, and neither does one

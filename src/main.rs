@@ -31,6 +31,7 @@ mod settings;
 mod setup;
 mod sound;
 mod sound_filter;
+mod home_pin;
 mod spawn;
 mod sprites;
 mod telemetry;

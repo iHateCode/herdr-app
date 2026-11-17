@@ -459,6 +459,8 @@ pub struct AppWindow {
     documents_watching: bool,
     draining: bool,
     changing_terminals: HashSet<String>,
+    /// Fork: parked terminals whose tab was their space's home tab.
+    parked_homes: HashSet<String>,
     /// Closed terminals stay excluded until kill completes and a listing drops them.
     closing_terminals: HashMap<String, bool>,
     pending_terminals: std::collections::BTreeMap<String, PendingTerminalChange>,
@@ -567,6 +569,7 @@ impl AppWindow {
             documents_watching: false,
             draining: false,
             changing_terminals: HashSet::new(),
+            parked_homes: HashSet::new(),
             closing_terminals: HashMap::new(),
             pending_terminals: Default::default(),
             documents: {
@@ -2829,12 +2832,16 @@ impl AppWindow {
                         self.model.split(&target, axis, &pane, &address);
                     } else {
                         self.model.add_tab(&space, Tab::new(&tab, &name, &pane, &address));
+                        crate::home_pin::restore(&mut self.model, &tab, &address, &mut self.parked_homes);
                     }
                 }
                 if let Some(pane) = self.model.pane_of(&address) { self.model.focus_pane(&pane); }
             }
             TerminalChange::Park => {
-                if let Some(pane) = self.model.pane_of(&address) { self.model.remove_pane(&pane); }
+                if let Some(pane) = self.model.pane_of(&address) {
+                    crate::home_pin::remember(&self.model, &pane, &address, &mut self.parked_homes);
+                    self.model.remove_pane(&pane);
+                }
             }
         }
         if !self.draining {
