@@ -527,8 +527,6 @@ shortcuts must then be added by hand.
   command's first argument), `send:<text>` (types into the terminal),
   `<mod>.<command>` (delivered to that mod's `nextCommand()`), or `terminal`
   (the program gets the key).
-- The mouse side buttons (back, forward) send `back` / `forward` to the `space-header` mod's
-  `nextCommand()`, anywhere in the window; with no such mod shown, they do nothing.
 - Named, typed command arguments use an object instead of a string:
   `"ctrl-shift-r": {"command": "layout.resize", "args": {"id": "sidebar", "px": 240}}`.
   `command` names an app command; `args` is an object (optional, defaults to `{}`).
@@ -558,6 +556,9 @@ shortcuts must then be added by hand.
   has focus. Clicking the terminal puts typing, including Escape, back in the program;
   the bar and its matches stay.
   Each terminal keeps its own query, and reopening selects it so typing replaces it. Search covers the screen and scrollback without replacing text selection.
+- The mouse side buttons (back, forward) send `back` / `forward` to the
+  `space-header` mod's `nextCommand()`, anywhere in the window, if the
+  space-header mod is installed; without it they do nothing.
 
 ## Commands
 
