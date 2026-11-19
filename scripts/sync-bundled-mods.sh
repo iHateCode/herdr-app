@@ -15,6 +15,18 @@ fi
 from=$(cd "$1" && pwd -P)
 repo=$(cd "$(dirname "$0")/.." && pwd -P)
 
+# The copy is of the working tree, so a dirty mods/ would ship edits that the
+# printed commit id does not contain.
+if ! dirty=$(git -C "$from" status --porcelain -- mods/ 2>&1); then
+  echo "sync-bundled-mods: cannot read git status of $from: $dirty" >&2
+  exit 1
+fi
+if [ -n "$dirty" ]; then
+  echo "sync-bundled-mods: $from/mods has uncommitted changes; commit or discard them first:" >&2
+  echo "$dirty" >&2
+  exit 1
+fi
+
 sources() {
   (cd "$1" && find . -type f ! -path '*/.*' ! -path '*/node_modules/*' ! -name jsconfig.json ! -name gpui-kit.d.ts | sed 's|^\./||' | sort)
 }
