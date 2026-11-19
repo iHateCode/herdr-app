@@ -5421,6 +5421,13 @@ impl Render for AppWindow {
                 }
             }))
             .capture_any_mouse_down(cx.listener(|this, ev: &MouseDownEvent, _, _| this.pointer = ev.position))
+            // The mouse side buttons step the space-header mod back and forward, anywhere in the window.
+            .on_mouse_down(MouseButton::Navigate(NavigationDirection::Back), |_, _, _| {
+                mods::send_command("space-header", "back");
+            })
+            .on_mouse_down(MouseButton::Navigate(NavigationDirection::Forward), |_, _, _| {
+                mods::send_command("space-header", "forward");
+            })
             .on_mouse_move(cx.listener(|this, ev: &MouseMoveEvent, window, cx| {
                 this.drag_window(ev, window);
                 if this.drag.is_none() {

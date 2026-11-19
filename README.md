@@ -156,5 +156,6 @@ This is a long-lived fork of [herdrdev/herdr-app](https://github.com/herdrdev/he
 - **Sounds for some agents only.** `sounds.only` in `settings.json` limits attention sounds to agents whose name contains that text, for example `{ "sounds": { "enabled": true, "only": "-cmdr-" } }`.
 - **No self-update.** A build made with `HERDR_APP_NO_SELF_UPDATE` set never replaces itself with upstream's release, so an update can't wipe out the fork's changes. The core (`hc`) still updates.
 - **An unsigned Mac build workflow.** `.github/workflows/fork-mac-build.yml` builds an unsigned Mac app on demand, with self-update off. It is run by hand; it does not run on every push.
+- **Mouse side buttons move through spaces.** The back and forward buttons on the mouse step through the spaces you've visited, anywhere in the window, over a terminal too. They drive the arrows of the `space-header` mod from herdr-space-folders, so that mod must be installed.
 
 The sidebar's folders, the two-line space rows and the commander badges come from a separate mod, [iHateCode/herdr-space-folders](https://github.com/iHateCode/herdr-space-folders), not from this repo.

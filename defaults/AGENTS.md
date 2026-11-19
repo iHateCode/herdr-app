@@ -1194,3 +1194,7 @@ above; where the two disagree, this section wins.
   `{ "sounds": { "enabled": true, "only": "-cmdr-" } }`. The name is the
   agent's own name or its tab's name. Absent or empty, every agent sounds.
   Toasts are not filtered.
+- **Mouse side buttons.** The back and forward buttons on the mouse send
+  `back` / `forward` to the `space-header` mod's `nextCommand()`, anywhere in
+  the window, over a terminal too, if the space-header mod is installed;
+  without it they do nothing.
