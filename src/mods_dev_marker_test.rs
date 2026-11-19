@@ -36,3 +36,12 @@ fn a_dev_marker_keeps_a_bundled_mod_folder_untouched() {
 
     std::fs::remove_dir_all(&root).unwrap();
 }
+
+/// A `.dev` file committed under defaults/mods would ship in every build and
+/// freeze that bundled mod on every install, for good.
+#[test]
+fn no_dev_marker_ships_in_the_bundled_mods() {
+    let shipped: Vec<&str> = super::DEFAULT_MODS.iter().map(|(p, _)| *p)
+        .filter(|p| p.rsplit('/').next() == Some(super::DEV_MARKER)).collect();
+    assert!(shipped.is_empty(), "remove the .dev marker from defaults/mods: {shipped:?}");
+}
