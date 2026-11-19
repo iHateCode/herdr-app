@@ -107,6 +107,11 @@ fn edited_name(parent: &Path, name: &str, suffix: &str) -> String {
         .find(|n| !parent.join(format!("{n}{suffix}")).exists()).unwrap()
 }
 
+/// Fork: a bundled mod's folder holding this file is a developer's own copy.
+/// The sync leaves it alone: no rename to -edited, no rewrite, no toast.
+/// A dot-file, so `as_shipped` and mod discovery never see it.
+const DEV_MARKER: &str = ".dev";
+
 fn sync_defaults(mods: &Path, installed_path: &Path, shipped_mods: &[(&str, &[u8])]) -> std::io::Result<()> {
     let text = std::fs::read_to_string(installed_path).unwrap_or_default();
     let mut installed: Installed = serde_json::from_str(&text).unwrap_or_default();
@@ -114,13 +119,16 @@ fn sync_defaults(mods: &Path, installed_path: &Path, shipped_mods: &[(&str, &[u8
     let dropped: Vec<String> = installed.keys().filter(|n| !n.starts_with("layout:") && !names.contains(n.as_str())).cloned().collect();
     for name in dropped {
         let target = mods.join(&name);
-        if installed.get(&name).is_some_and(|was| target.exists() && as_shipped(&target, was)) {
+        if installed.get(&name).is_some_and(|was| target.exists() && as_shipped(&target, was)) && !target.join(DEV_MARKER).exists() {
             std::fs::remove_dir_all(&target)?;
         }
         installed.remove(&name);
     }
     for name in names {
         let target = mods.join(name);
+        if target.join(DEV_MARKER).exists() {
+            continue; // fork: a developer's own copy, see DEV_MARKER
+        }
         let shipped: Files = shipped_mods.iter()
             .filter_map(|(p, bytes)| Some((p.strip_prefix(&format!("{name}/"))?.to_owned(), fingerprint(bytes))))
             .collect();
@@ -1307,6 +1315,7 @@ pub fn prepare_load(inst: &Instance) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    include!("mods_dev_marker_test.rs"); // fork: kept in its own file
     use super::*;
 
     #[test]

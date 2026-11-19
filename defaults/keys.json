@@ -70,5 +70,13 @@
     "ctrl-v": "terminal.paste_image",
     "ctrl-insert": "terminal.copy",
     "shift-insert": "terminal.paste"
+  },
+  "layout:main-folders": {
+    "alt-down": "space-folders.next",
+    "alt-up": "space-folders.prev",
+    "ctrl-shift-pagedown": "space-folders.next",
+    "ctrl-shift-pageup": "space-folders.prev",
+    "ctrl-space shift-n": "space-folders.next",
+    "ctrl-space shift-p": "space-folders.prev"
   }
 }
