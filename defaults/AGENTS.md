@@ -556,9 +556,6 @@ shortcuts must then be added by hand.
   has focus. Clicking the terminal puts typing, including Escape, back in the program;
   the bar and its matches stay.
   Each terminal keeps its own query, and reopening selects it so typing replaces it. Search covers the screen and scrollback without replacing text selection.
-- The mouse side buttons (back, forward) send `back` / `forward` to the
-  `space-header` mod's `nextCommand()`, anywhere in the window, if the
-  space-header mod is installed; without it they do nothing.
 
 ## Commands
 
@@ -1197,3 +1194,7 @@ above; where the two disagree, this section wins.
   `{ "sounds": { "enabled": true, "only": "-cmdr-" } }`. The name is the
   agent's own name or its tab's name. Absent or empty, every agent sounds.
   Toasts are not filtered.
+- **Mouse side buttons.** The back and forward buttons on the mouse send
+  `back` / `forward` to the `space-header` mod's `nextCommand()`, anywhere in
+  the window, over a terminal too, if the space-header mod is installed;
+  without it they do nothing.
