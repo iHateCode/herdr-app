@@ -163,6 +163,7 @@ const LAYOUTS: &[(&str, &str)] = &[
     ("main", include_str!("../defaults/layouts/main.json")),
     ("terminals", include_str!("../defaults/layouts/terminals.json")),
     ("win98", include_str!("../defaults/layouts/win98.json")),
+    ("main-folders", include_str!("../defaults/layouts/main-folders.json")), // fork: the sidebar add-ons
 ];
 
 /// Pictures shipped layouts name as their `preview`, written beside them.
@@ -633,7 +634,7 @@ impl AppWindow {
         // A layout whose mods are gone (Zen, T4, ADE after the update took
         // theirs) starts on Herdr's instead of a wall of "did not load".
         let gone = name.as_deref().map(missing_mods).unwrap_or_default();
-        w.load_layout(if gone.is_empty() { name.as_deref().unwrap_or("main") } else { "main" });
+        w.load_layout(if gone.is_empty() { name.as_deref().unwrap_or("main-folders") } else { "main" }); // fork: fresh installs start on main-folders
         #[cfg(target_os = "macos")]
         crate::macos::refresh_menus(cx);
         w.apply_look(window, cx);

@@ -1198,3 +1198,11 @@ above; where the two disagree, this section wins.
   `back` / `forward` to the `space-header` mod's `nextCommand()`, anywhere in
   the window, over a terminal too, if the space-header mod is installed;
   without it they do nothing.
+- **Bundled sidebar add-ons.** `space-folders` and `space-header` ship as
+  default mods, with a `main-folders` layout that uses them (the start layout
+  on a fresh install) and a `layout:main-folders` section in the default
+  keys. A bundled mod's folder that holds a `.dev` file is never touched by
+  the launch-time sync: not replaced, not moved to `<name>-edited`, not
+  deleted when the mod stops shipping. Delete `.dev` to get the shipped
+  version back at the next launch (an edited folder is then moved to
+  `<name>-edited` as usual).
