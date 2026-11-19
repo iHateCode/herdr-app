@@ -39,12 +39,14 @@ const SHIPPED_KEYS: &[&str] = &[
     include_str!("keys/shipped/v0.1.4-keys.json"),
     include_str!("keys/shipped/v0.1.5-keys.json"),
     include_str!("keys/shipped/v0.1.12-keys.json"),
+    include_str!("keys/shipped/fork-v0.1.16-keys.json"), // fork: its own defaults
 ];
 #[cfg(any(target_os = "macos", test))]
 const SHIPPED_MACOS_KEYS: &[&str] = &[
     include_str!("keys/shipped/v0.1.4-keys.macos.json"),
     include_str!("keys/shipped/v0.1.5-keys.macos.json"),
     include_str!("keys/shipped/v0.1.15-keys.macos.json"),
+    include_str!("keys/shipped/fork-v0.1.16-keys.macos.json"), // fork: its own defaults
 ];
 
 #[derive(serde::Deserialize)]
@@ -306,6 +308,8 @@ mod tests {
         }
         std::fs::remove_dir_all(dir).unwrap();
     }
+
+    include!("keys_fork_shipped_test.rs"); // fork: kept in its own file
 
     #[test]
     fn keys_from_0_1_0_mean_the_same_now() {
