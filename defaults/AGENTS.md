@@ -1196,8 +1196,8 @@ above; where the two disagree, this section wins.
   Toasts are not filtered.
 - **Mouse side buttons.** The back and forward buttons on the mouse send
   `back` / `forward` to the `space-header` mod's `nextCommand()`, anywhere in
-  the window, over a terminal too, if the space-header mod is installed;
-  without it they do nothing.
+  the window, over a terminal too. The space-header mod is bundled (see
+  below), so this works on a default install.
 - **Bundled sidebar add-ons.** `space-folders` and `space-header` ship as
   default mods, with a `main-folders` layout that uses them (the start layout
   on a fresh install) and a `layout:main-folders` section in the default
